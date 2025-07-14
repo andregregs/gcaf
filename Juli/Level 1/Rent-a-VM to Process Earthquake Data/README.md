@@ -11,8 +11,8 @@ export REGION=
 ```
 
 ```
-curl -LO raw.githubusercontent.com/andregregs/gcaf/refs/heads/main/Juli/Level%201/Cloud%20Storage%20Qwik%20Start%20-%20Cloud%20Console/GSP073.sh
-sudo chmod +x GSP073.sh
+curl -LO raw.githubusercontent.com/andregregs/gcaf/refs/heads/main/Juli/Level%201/Rent-a-VM%20to%20Process%20Earthquake%20Data/GSP008.sh
+sudo chmod +x GSP008.sh
 
-./GSP073.sh
+./GSP008.sh
 ```
