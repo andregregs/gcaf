@@ -7,8 +7,12 @@
 ### Run the following Commands in CloudShell 
 
 ```
-curl -LO raw.githubusercontent.com/andregregs/gcaf/refs/heads/main/Juli/Level%201/Getting%20Started%20with%20Cloud%20Shell%20and%20gcloud/GSP002.sh
-sudo chmod +x GSP002.sh
+export REGION=
+```
 
-./GSP002.sh
+```
+curl -LO raw.githubusercontent.com/andregregs/gcaf/refs/heads/main/Juli/Level%201/Cloud%20Storage%20Qwik%20Start%20-%20Cloud%20Console/GSP073.sh
+sudo chmod +x GSP073.sh
+
+./GSP073.sh
 ```
