@@ -41,7 +41,7 @@ gsutil cp -r gs://$PROJECT_ID-gcaf/ada.jpg .
 
 # Copy to another location (requires destination bucket to exist)
 echo -e "\n${GREEN}Copying to image folder...${NC}"
-gsutil cp gs://$PROJECT_ID-gcaf/ada.jpg gs://$PROJECT_ID-techcps/image-folder/
+gsutil cp gs://$PROJECT_ID-gcaf/ada.jpg gs://$PROJECT_ID-gcaf/image-folder/
 
 # List bucket contents
 echo -e "\n${CYAN}Listing bucket contents:${NC}"
