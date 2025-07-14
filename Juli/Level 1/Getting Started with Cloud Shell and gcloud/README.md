@@ -7,8 +7,8 @@
 ### Run the following Commands in CloudShell 
 
 ```
-curl -LO raw.githubusercontent.com/andregregs/gcaf/refs/heads/main/Juli/Level%201/Set%20Up%20Network%20and%20Application%20Load%20Balancers/GSP007.sh
-sudo chmod +x GSP007.sh
+curl -LO raw.githubusercontent.com/andregregs/gcaf/refs/heads/main/Juli/Level%201/Getting%20Started%20with%20Cloud%20Shell%20and%20gcloud/GSP002.sh
+sudo chmod +x GSP002.sh
 
-./GSP007.sh
+./GSP002.sh
 ```
