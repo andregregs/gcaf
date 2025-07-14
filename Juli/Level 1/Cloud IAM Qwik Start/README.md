@@ -7,8 +7,8 @@
 ### Run the following Commands in CloudShell
 
 ```
-curl -LO raw.githubusercontent.com/andregregs/gcaf/refs/heads/main/Juli/Level%201/Rent-a-VM%20to%20Process%20Earthquake%20Data/GSP008.sh
-sudo chmod +x GSP008.sh
+curl -LO raw.githubusercontent.com/andregregs/gcaf/refs/heads/main/Juli/Level%201/Cloud%20IAM%20Qwik%20Start/GSP064.sh
+sudo chmod +x GSP064.sh
 
-./GSP008.sh
+./GSP064.sh
 ```
