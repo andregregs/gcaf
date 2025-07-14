@@ -12,5 +12,3 @@ sudo chmod +x GSP007.sh
 
 ./GSP007.sh
 ```
-
-### Congratulations 🎉 for completing the Lab !
