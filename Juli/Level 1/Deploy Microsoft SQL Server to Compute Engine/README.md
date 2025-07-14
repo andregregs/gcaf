@@ -7,8 +7,8 @@
 ### Run the following Commands in CloudShell
 
 ```
-curl -LO raw.githubusercontent.com/andregregs/gcaf/refs/heads/main/Juli/Level%201/Rent-a-VM%20to%20Process%20Earthquake%20Data/GSP008.sh
-sudo chmod +x GSP008.sh
+curl -LO raw.githubusercontent.com/andregregs/gcaf/refs/heads/main/Juli/Level%201/Deploy%20Microsoft%20SQL%20Server%20to%20Compute%20Engine/GSP031.sh
+sudo chmod +x GSP031.sh
 
-./GSP008.sh
+./GSP031.sh
 ```
