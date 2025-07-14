@@ -7,8 +7,8 @@
 ### Run the following Commands in CloudShell 
 
 ```
-curl -LO raw.githubusercontent.com/andregregs/gcaf/refs/heads/main/Juli/Level%201/Rate%20Limiting%20with%20Cloud%20Armor/GSP975.sh
-sudo chmod +x GSP975.sh
+curl -LO raw.githubusercontent.com/andregregs/gcaf/refs/heads/main/Juli/Level%201/Application%20Load%20Balancer%20with%20Cloud%20Armor/GSP215.sh
+sudo chmod +x GSP215.sh
 
-./GSP975.sh
+./GSP215.sh
 ```
