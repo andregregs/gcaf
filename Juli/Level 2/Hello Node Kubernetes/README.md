@@ -7,7 +7,7 @@
 ### Run the following Commands in CloudShell 
 
 ```
-curl -LO raw.githubusercontent.com/andregregs/gcaf/refs/heads/main/Juli/Level%201/Application%20Load%20Balancer%20with%20Cloud%20Armor/GSP215.sh
+curl -LO raw.githubusercontent.com/andregregs/gcaf/refs/heads/main/Juli/Level%202/Hello%20Node%20Kubernetes/gsp005.sh
 sudo chmod +x GSP215.sh
 
 ./GSP215.sh
