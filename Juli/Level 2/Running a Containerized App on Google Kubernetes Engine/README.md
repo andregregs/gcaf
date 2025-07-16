@@ -7,8 +7,8 @@
 ### Run the following Commands in CloudShell 
 
 ```
-curl -LO raw.githubusercontent.com/andregregs/gcaf/refs/heads/main/Juli/Level%202/Hello%20Node%20Kubernetes/GSP005.sh
-sudo chmod +x GSP005.sh
+curl -LO raw.githubusercontent.com/andregregs/gcaf/refs/heads/main/Juli/Level%202/Running%20a%20Containerized%20App%20on%20Google%20Kubernetes%20Engine/GSP015.sh
+sudo chmod +x GSP015.sh
 
-./GSP005.sh
+./GSP015.sh
 ```
