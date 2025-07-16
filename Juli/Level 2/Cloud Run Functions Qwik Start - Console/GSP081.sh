@@ -6,6 +6,7 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 YELLOW='\033[1;33m'
 PURPLE='\033[0;35m'
+RED='\033[0;31m'
 NC='\033[0m'
 
 echo -e "${BLUE}=== GCP Cloud Run Function Deployment ===${NC}\n"
@@ -95,19 +96,41 @@ echo -e "${CYAN}Function source code created${NC}"
 # ===============================
 echo -e "\n${GREEN}4. Deploying Cloud Run Function...${NC}"
 
-# Deploy the function with specified configuration
-gcloud functions deploy gcfunction \
+# Try deploying with gen2 first
+echo -e "${PURPLE}Attempting gen2 deployment... (this may take a few minutes)${NC}"
+if gcloud functions deploy gcfunction \
   --gen2 \
   --runtime=nodejs20 \
   --region=$REGION \
   --source=. \
   --entry-point=helloHttp \
-  --trigger=http \
+  --trigger-http \
   --allow-unauthenticated \
   --max-instances=5 \
-  --memory=256Mi
+  --memory=256Mi; then
+    echo -e "${CYAN}Gen2 function deployed successfully!${NC}"
+else
+    echo -e "${YELLOW}Gen2 deployment failed, trying gen1...${NC}"
+    # Fallback to gen1 deployment
+    if gcloud functions deploy gcfunction \
+      --runtime=nodejs20 \
+      --region=$REGION \
+      --source=. \
+      --entry-point=helloHttp \
+      --trigger-http \
+      --allow-unauthenticated \
+      --max-instances=5 \
+      --memory=256Mi; then
+        echo -e "${CYAN}Gen1 function deployed successfully!${NC}"
+    else
+        echo -e "${RED}Both gen1 and gen2 deployment failed! Exiting...${NC}"
+        exit 1
+    fi
+fi
 
-echo -e "${CYAN}Function deployed successfully!${NC}"
+# Wait for function to be ready
+echo -e "${PURPLE}Waiting for function to be ready...${NC}"
+sleep 30
 
 # ===============================
 # 5. GET FUNCTION DETAILS
@@ -115,9 +138,18 @@ echo -e "${CYAN}Function deployed successfully!${NC}"
 echo -e "\n${GREEN}5. Getting function details...${NC}"
 
 # Get function URL
-FUNCTION_URL=$(gcloud functions describe gcfunction --region=$REGION --format="value(serviceConfig.uri)")
+if FUNCTION_URL=$(gcloud functions describe gcfunction --region=$REGION --format="value(serviceConfig.uri)" 2>/dev/null); then
+    echo -e "${CYAN}Function URL: $FUNCTION_URL${NC}"
+else
+    echo -e "${RED}Failed to get function URL. Function may not be deployed properly.${NC}"
+    exit 1
+fi
 
-echo -e "${CYAN}Function URL: $FUNCTION_URL${NC}"
+# Verify function URL is not empty
+if [ -z "$FUNCTION_URL" ]; then
+    echo -e "${RED}Function URL is empty. Function may not be ready yet.${NC}"
+    exit 1
+fi
 
 # ===============================
 # 6. TEST THE FUNCTION (TASK 3)
@@ -160,7 +192,11 @@ echo "gcloud functions call gcfunction --region=$REGION --data='{\"message\":\"H
 
 # Execute CLI test
 echo -e "\n${PURPLE}Executing CLI test...${NC}"
-gcloud functions call gcfunction --region=$REGION --data='{"message":"Hello World!"}'
+if gcloud functions call gcfunction --region=$REGION --data='{"message":"Hello World!"}'; then
+    echo -e "${CYAN}CLI test completed successfully${NC}"
+else
+    echo -e "${RED}CLI test failed${NC}"
+fi
 
 # ===============================
 # 8. VIEW FUNCTION LOGS (TASK 4)
@@ -169,7 +205,11 @@ echo -e "\n${GREEN}8. Viewing function logs...${NC}"
 
 # Show recent logs
 echo -e "${PURPLE}Recent function logs:${NC}"
-gcloud functions logs read gcfunction --region=$REGION --limit=10
+if gcloud functions logs read gcfunction --region=$REGION --limit=10; then
+    echo -e "${CYAN}Logs retrieved successfully${NC}"
+else
+    echo -e "${YELLOW}No logs available yet or function not found${NC}"
+fi
 
 # ===============================
 # 9. FUNCTION INFORMATION SUMMARY
@@ -178,7 +218,11 @@ echo -e "\n${GREEN}9. Function deployment summary...${NC}"
 
 # Get function details
 echo -e "${CYAN}Function Details:${NC}"
-gcloud functions describe gcfunction --region=$REGION
+if gcloud functions describe gcfunction --region=$REGION; then
+    echo -e "${CYAN}Function details retrieved successfully${NC}"
+else
+    echo -e "${YELLOW}Function details not available${NC}"
+fi
 
 echo -e "\n${GREEN}=== Cloud Run Function Tasks Completed! ===${NC}"
 echo -e "${CYAN}✓ Task 1: Function created successfully${NC}"
