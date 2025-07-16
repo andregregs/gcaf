@@ -18,15 +18,25 @@ echo -e "${GREEN}1. Setting up authentication and environment...${NC}"
 # Check current authentication
 gcloud auth list
 
-# Export environment variables
-export REGION=$(gcloud compute project-info describe --format="value(commonInstanceMetadata.items[google-compute-default-region])")
+# Get project ID
 export PROJECT_ID=$(gcloud config get-value project)
+echo -e "${CYAN}Project ID: $PROJECT_ID${NC}"
 
-# Set default region
+# Manual region input
+echo -e "\n${CYAN}Please enter the region where you want to deploy the function:${NC}"
+echo -e "${YELLOW}Common regions: us-central1, us-east1, europe-west1, asia-southeast1${NC}"
+read -p "Enter region: " REGION
+
+# Validate region input
+if [ -z "$REGION" ]; then
+    echo -e "${RED}Error: Region cannot be empty!${NC}"
+    exit 1
+fi
+
+export REGION
 gcloud config set compute/region "$REGION"
 
-echo -e "${CYAN}Region: $REGION${NC}"
-echo -e "${CYAN}Project ID: $PROJECT_ID${NC}"
+echo -e "${CYAN}Selected Region: $REGION${NC}"
 
 # ===============================
 # 2. ENABLE REQUIRED APIS
