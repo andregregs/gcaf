@@ -16,7 +16,7 @@ https://github.com/subfuzion/voting-demo.git
 
 ```
 curl -LO raw.githubusercontent.com/andregregs/gcaf/refs/heads/main/Juli/Level%202/GKE%20Autopilot%20Qwik%20Start/GSP957.sh
-sudo chmod +x GSP957.sh
 
-./GSP957.sh
+source +x GSP957.sh
+
 ```
