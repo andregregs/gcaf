@@ -1,34 +1,30 @@
 #!/bin/bash
 
-# Colors using tput (reliable across different terminals)
+# Colors for output
 YELLOW=$(tput setaf 3)
-GREEN=$(tput setaf 2)
-BLUE=$(tput setaf 4)
-CYAN=$(tput setaf 6)
-RED=$(tput setaf 1)
 BOLD=$(tput bold)
+GREEN=$(tput setaf 2)
 RESET=$(tput sgr0)
 
-echo "${BLUE}=== Google Cloud Load Balancer with Cloud Armor Setup ===${RESET}"
-echo
-
 # Get user input
-echo "Please set the below values correctly"
-read -p "${YELLOW}${BOLD}Enter the REGION1: ${RESET}" REGION1
-read -p "${YELLOW}${BOLD}Enter the REGION2: ${RESET}" REGION2
-read -p "${YELLOW}${BOLD}Enter the VM_ZONE: ${RESET}" VM_ZONE
+echo "${YELLOW}${BOLD}=== GCP Load Balancer Setup ===${RESET}"
+echo "Please enter the required values:"
+read -p "${YELLOW}${BOLD}Enter REGION1: ${RESET}" REGION1
+read -p "${YELLOW}${BOLD}Enter REGION2: ${RESET}" REGION2
+read -p "${YELLOW}${BOLD}Enter VM_ZONE: ${RESET}" VM_ZONE
 
-# Export variables after collecting input
+# Export variables
 export REGION1 REGION2 VM_ZONE
+export DEVSHELL_PROJECT_ID=$(gcloud config get-value project)
+export TOKEN=$(gcloud auth application-default print-access-token)
 
-echo
-echo "${CYAN}Configuration:${RESET}"
-echo "Region 1: $REGION1"
-echo "Region 2: $REGION2"
-echo "VM Zone: $VM_ZONE"
+echo "${GREEN}Starting setup with:"
+echo "- Region 1: $REGION1"
+echo "- Region 2: $REGION2" 
+echo "- VM Zone: $VM_ZONE"
+echo "- Project: $DEVSHELL_PROJECT_ID${RESET}"
 
-# Create firewall rules
-echo
+# 1. Create Firewall Rules
 echo "${GREEN}Creating firewall rules...${RESET}"
 gcloud compute firewall-rules create default-allow-http \
   --project=$DEVSHELL_PROJECT_ID \
@@ -48,96 +44,60 @@ gcloud compute firewall-rules create default-allow-health-check \
   --source-ranges=130.211.0.0/22,35.191.0.0/16 \
   --target-tags=http-server \
   --action=ALLOW \
-  --rules=tcp:80
+  --rules=tcp
 
-# Create instance templates
-echo
+# 2. Create Instance Templates
 echo "${GREEN}Creating instance templates...${RESET}"
-echo "${YELLOW}Creating template for $REGION1...${RESET}"
-gcloud compute instance-templates create $REGION1-template \
-  --project=$DEVSHELL_PROJECT_ID \
-  --machine-type=e2-micro \
-  --network-interface=network-tier=PREMIUM,subnet=default \
-  --metadata=startup-script-url=gs://cloud-training/gcpnet/httplb/startup.sh,enable-oslogin=true \
-  --maintenance-policy=MIGRATE \
-  --provisioning-model=STANDARD \
-  --region=$REGION1 \
-  --tags=http-server,https-server \
-  --create-disk=auto-delete=yes,boot=yes,device-name=$REGION1-template,image=projects/debian-cloud/global/images/debian-11-bullseye-v20230629,mode=rw,size=10,type=pd-balanced \
-  --no-shielded-secure-boot \
-  --shielded-vtpm \
-  --shielded-integrity-monitoring \
-  --reservation-affinity=any
+create_template() {
+  local region=$1
+  gcloud compute instance-templates create $region-template \
+    --project=$DEVSHELL_PROJECT_ID \
+    --machine-type=e2-micro \
+    --network-interface=network-tier=PREMIUM,subnet=default \
+    --metadata=startup-script-url=gs://cloud-training/gcpnet/httplb/startup.sh,enable-oslogin=true \
+    --maintenance-policy=MIGRATE \
+    --provisioning-model=STANDARD \
+    --region=$region \
+    --tags=http-server,https-server \
+    --create-disk=auto-delete=yes,boot=yes,device-name=$region-template,image=projects/debian-cloud/global/images/debian-11-bullseye-v20230629,mode=rw,size=10,type=pd-balanced \
+    --no-shielded-secure-boot \
+    --shielded-vtpm \
+    --shielded-integrity-monitoring \
+    --reservation-affinity=any
+}
 
-echo "${YELLOW}Creating template for $REGION2...${RESET}"
-gcloud compute instance-templates create $REGION2-template \
-  --project=$DEVSHELL_PROJECT_ID \
-  --machine-type=e2-micro \
-  --network-interface=network-tier=PREMIUM,subnet=default \
-  --metadata=startup-script-url=gs://cloud-training/gcpnet/httplb/startup.sh,enable-oslogin=true \
-  --maintenance-policy=MIGRATE \
-  --provisioning-model=STANDARD \
-  --region=$REGION2 \
-  --tags=http-server,https-server \
-  --create-disk=auto-delete=yes,boot=yes,device-name=$REGION2-template,image=projects/debian-cloud/global/images/debian-11-bullseye-v20230629,mode=rw,size=10,type=pd-balanced \
-  --no-shielded-secure-boot \
-  --shielded-vtpm \
-  --shielded-integrity-monitoring \
-  --reservation-affinity=any
+create_template $REGION1
+create_template $REGION2
 
-# Create managed instance groups
-echo
-echo "${GREEN}Creating managed instance groups with autoscaling...${RESET}"
-echo "${YELLOW}Creating MIG for $REGION1...${RESET}"
-gcloud beta compute instance-groups managed create $REGION1-mig \
-  --project=$DEVSHELL_PROJECT_ID \
-  --base-instance-name=$REGION1-mig \
-  --size=1 \
-  --template=$REGION1-template \
-  --region=$REGION1 \
-  --target-distribution-shape=EVEN \
-  --instance-redistribution-type=PROACTIVE \
-  --list-managed-instances-results=PAGELESS \
-  --no-force-update-on-repair
+# 3. Create Managed Instance Groups with Autoscaling
+echo "${GREEN}Creating managed instance groups...${RESET}"
+create_mig() {
+  local region=$1
+  gcloud beta compute instance-groups managed create $region-mig \
+    --project=$DEVSHELL_PROJECT_ID \
+    --base-instance-name=$region-mig \
+    --size=1 \
+    --template=$region-template \
+    --region=$region \
+    --target-distribution-shape=EVEN \
+    --instance-redistribution-type=PROACTIVE \
+    --list-managed-instances-results=PAGELESS \
+    --no-force-update-on-repair
 
-gcloud beta compute instance-groups managed set-autoscaling $REGION1-mig \
-  --project=$DEVSHELL_PROJECT_ID \
-  --region=$REGION1 \
-  --cool-down-period=45 \
-  --max-num-replicas=2 \
-  --min-num-replicas=1 \
-  --mode=on \
-  --target-cpu-utilization=0.8
+  gcloud beta compute instance-groups managed set-autoscaling $region-mig \
+    --project=$DEVSHELL_PROJECT_ID \
+    --region=$region \
+    --cool-down-period=45 \
+    --max-num-replicas=2 \
+    --min-num-replicas=1 \
+    --mode=on \
+    --target-cpu-utilization=0.8
+}
 
-echo "${YELLOW}Creating MIG for $REGION2...${RESET}"
-gcloud beta compute instance-groups managed create $REGION2-mig \
-  --project=$DEVSHELL_PROJECT_ID \
-  --base-instance-name=$REGION2-mig \
-  --size=1 \
-  --template=$REGION2-template \
-  --region=$REGION2 \
-  --target-distribution-shape=EVEN \
-  --instance-redistribution-type=PROACTIVE \
-  --list-managed-instances-results=PAGELESS \
-  --no-force-update-on-repair
+create_mig $REGION1
+create_mig $REGION2
 
-gcloud beta compute instance-groups managed set-autoscaling $REGION2-mig \
-  --project=$DEVSHELL_PROJECT_ID \
-  --region=$REGION2 \
-  --cool-down-period=45 \
-  --max-num-replicas=2 \
-  --min-num-replicas=1 \
-  --mode=on \
-  --target-cpu-utilization=0.8
-
-# Setup API authentication
-echo
-echo "${GREEN}Setting up API authentication...${RESET}"
-DEVSHELL_PROJECT_ID=$(gcloud config get-value project)
-TOKEN=$(gcloud auth application-default print-access-token)
-
-# Create health check
-echo
+# 4. Create Health Check
 echo "${GREEN}Creating health check...${RESET}"
 curl -X POST -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
@@ -145,27 +105,19 @@ curl -X POST -H "Content-Type: application/json" \
     "checkIntervalSec": 5,
     "description": "",
     "healthyThreshold": 2,
-    "logConfig": {
-      "enable": false
-    },
+    "logConfig": {"enable": false},
     "name": "http-health-check",
-    "tcpHealthCheck": {
-      "port": 80,
-      "proxyHeader": "NONE"
-    },
+    "tcpHealthCheck": {"port": 80, "proxyHeader": "NONE"},
     "timeoutSec": 5,
     "type": "TCP",
     "unhealthyThreshold": 2
   }' \
   "https://compute.googleapis.com/compute/v1/projects/$DEVSHELL_PROJECT_ID/global/healthChecks"
 
-echo
-echo "${YELLOW}Waiting for health check creation...${RESET}"
 sleep 30
 
-# Create backend service
-echo
-echo "${GREEN}Creating backend service with CDN...${RESET}"
+# 5. Create Backend Service
+echo "${GREEN}Creating backend service...${RESET}"
 curl -X POST -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
   -d '{
@@ -177,7 +129,7 @@ curl -X POST -H "Content-Type: application/json" \
         "maxRatePerInstance": 50
       },
       {
-        "balancingMode": "UTILIZATION",
+        "balancingMode": "UTILIZATION", 
         "capacityScaler": 1,
         "group": "projects/'"$DEVSHELL_PROJECT_ID"'/regions/'"$REGION2"'/instanceGroups/'"$REGION2-mig"'",
         "maxRatePerInstance": 80,
@@ -185,11 +137,7 @@ curl -X POST -H "Content-Type: application/json" \
       }
     ],
     "cdnPolicy": {
-      "cacheKeyPolicy": {
-        "includeHost": true,
-        "includeProtocol": true,
-        "includeQueryString": true
-      },
+      "cacheKeyPolicy": {"includeHost": true, "includeProtocol": true, "includeQueryString": true},
       "cacheMode": "CACHE_ALL_STATIC",
       "clientTtl": 3600,
       "defaultTtl": 3600,
@@ -198,29 +146,18 @@ curl -X POST -H "Content-Type: application/json" \
       "serveWhileStale": 0
     },
     "compressionMode": "DISABLED",
-    "connectionDraining": {
-      "drainingTimeoutSec": 300
-    },
-    "description": "",
+    "connectionDraining": {"drainingTimeoutSec": 300},
     "enableCDN": true,
-    "healthChecks": [
-      "projects/'"$DEVSHELL_PROJECT_ID"'/global/healthChecks/http-health-check"
-    ],
+    "healthChecks": ["projects/'"$DEVSHELL_PROJECT_ID"'/global/healthChecks/http-health-check"],
     "loadBalancingScheme": "EXTERNAL",
-    "logConfig": {
-      "enable": true,
-      "sampleRate": 1
-    },
+    "logConfig": {"enable": true, "sampleRate": 1},
     "name": "http-backend"
   }' \
   "https://compute.googleapis.com/compute/v1/projects/$DEVSHELL_PROJECT_ID/global/backendServices"
 
-echo
-echo "${YELLOW}Waiting for backend service creation...${RESET}"
 sleep 60
 
-# Create URL map
-echo
+# 6. Create URL Map
 echo "${GREEN}Creating URL map...${RESET}"
 curl -X POST -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
@@ -230,36 +167,27 @@ curl -X POST -H "Content-Type: application/json" \
   }' \
   "https://compute.googleapis.com/compute/v1/projects/$DEVSHELL_PROJECT_ID/global/urlMaps"
 
-echo
-echo "${YELLOW}Waiting for URL map creation...${RESET}"
 sleep 30
 
-# Create target HTTP proxies
-echo
-echo "${GREEN}Creating target HTTP proxies...${RESET}"
-curl -X POST -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $TOKEN" \
-  -d '{
-    "name": "http-lb-target-proxy",
-    "urlMap": "projects/'"$DEVSHELL_PROJECT_ID"'/global/urlMaps/http-lb"
-  }' \
-  "https://compute.googleapis.com/compute/v1/projects/$DEVSHELL_PROJECT_ID/global/targetHttpProxies"
+# 7. Create Target HTTP Proxies (IPv4 and IPv6)
+echo "${GREEN}Creating target proxies...${RESET}"
+create_proxy() {
+  local name=$1
+  curl -X POST -H "Content-Type: application/json" \
+    -H "Authorization: Bearer $TOKEN" \
+    -d '{
+      "name": "'"$name"'",
+      "urlMap": "projects/'"$DEVSHELL_PROJECT_ID"'/global/urlMaps/http-lb"
+    }' \
+    "https://compute.googleapis.com/compute/v1/projects/$DEVSHELL_PROJECT_ID/global/targetHttpProxies"
+  sleep 30
+}
 
-sleep 30
+create_proxy "http-lb-target-proxy"
+create_proxy "http-lb-target-proxy-2"
 
-curl -X POST -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $TOKEN" \
-  -d '{
-    "name": "http-lb-target-proxy-2",
-    "urlMap": "projects/'"$DEVSHELL_PROJECT_ID"'/global/urlMaps/http-lb"
-  }' \
-  "https://compute.googleapis.com/compute/v1/projects/$DEVSHELL_PROJECT_ID/global/targetHttpProxies"
-
-# Create forwarding rules
-echo
-echo "${GREEN}Creating forwarding rules (IPv4 and IPv6)...${RESET}"
-sleep 30
-
+# 8. Create Forwarding Rules (IPv4 and IPv6)
+echo "${GREEN}Creating forwarding rules...${RESET}"
 curl -X POST -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
   -d '{
@@ -280,7 +208,7 @@ curl -X POST -H "Content-Type: application/json" \
   -d '{
     "IPProtocol": "TCP",
     "ipVersion": "IPV6",
-    "loadBalancingScheme": "EXTERNAL",
+    "loadBalancingScheme": "EXTERNAL", 
     "name": "http-lb-forwarding-rule-2",
     "networkTier": "PREMIUM",
     "portRange": "80",
@@ -288,38 +216,23 @@ curl -X POST -H "Content-Type: application/json" \
   }' \
   "https://compute.googleapis.com/compute/v1/projects/$DEVSHELL_PROJECT_ID/global/forwardingRules"
 
-# Set named ports on instance groups
-echo
-echo "${GREEN}Setting named ports on instance groups...${RESET}"
-sleep 30
+# 9. Set Named Ports for Instance Groups
+echo "${GREEN}Setting named ports...${RESET}"
+set_named_ports() {
+  local region=$1
+  local group_name="$region-mig"
+  curl -X POST -H "Content-Type: application/json" \
+    -H "Authorization: Bearer $TOKEN" \
+    -d '{"namedPorts": [{"name": "http", "port": 80}]}' \
+    "https://compute.googleapis.com/compute/v1/projects/$DEVSHELL_PROJECT_ID/regions/$region/instanceGroups/$group_name/setNamedPorts"
+  sleep 30
+}
 
-curl -X POST -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $TOKEN" \
-  -d '{
-    "namedPorts": [
-      {
-        "name": "http",
-        "port": 80
-      }
-    ]
-  }' \
-  "https://compute.googleapis.com/compute/v1/projects/$DEVSHELL_PROJECT_ID/regions/$REGION1/instanceGroups/$REGION1-mig/setNamedPorts"
+set_named_ports $REGION1
+set_named_ports $REGION2
 
-curl -X POST -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $TOKEN" \
-  -d '{
-    "namedPorts": [
-      {
-        "name": "http",
-        "port": 80
-      }
-    ]
-  }' \
-  "https://compute.googleapis.com/compute/v1/projects/$DEVSHELL_PROJECT_ID/regions/$REGION2/instanceGroups/$REGION2-mig/setNamedPorts"
-
-# Create siege VM for testing
-echo
-echo "${GREEN}Creating siege VM for load testing...${RESET}"
+# 10. Create Siege VM for Load Testing
+echo "${GREEN}Creating siege VM...${RESET}"
 gcloud compute instances create siege-vm \
   --project=$DEVSHELL_PROJECT_ID \
   --zone=$VM_ZONE \
@@ -328,64 +241,37 @@ gcloud compute instances create siege-vm \
   --metadata=enable-oslogin=true \
   --maintenance-policy=MIGRATE \
   --provisioning-model=STANDARD \
-  --create-disk=auto-delete=yes,boot=yes,device-name=siege-vm,image=projects/debian-cloud/global/images/debian-11-bullseye-v20230629,mode=rw,size=10,type=pd-balanced \
+  --create-disk=auto-delete=yes,boot=yes,device-name=siege-vm,image=projects/debian-cloud/global/images/debian-11-bullseye-v20230629,mode=rw,size=10,type=projects/$DEVSHELL_PROJECT_ID/zones/$VM_ZONE/diskTypes/pd-balanced \
   --no-shielded-secure-boot \
   --shielded-vtpm \
   --shielded-integrity-monitoring \
-  --labels=goog-ec-src=vm_add-gcloud \
   --reservation-affinity=any
 
-echo
-echo "${YELLOW}Waiting for siege VM to be ready...${RESET}"
 sleep 60
 
-# Get siege VM external IP
-echo
-echo "${GREEN}Getting siege VM external IP...${RESET}"
+# 11. Setup Cloud Armor Security Policy
+echo "${GREEN}Setting up Cloud Armor...${RESET}"
 export EXTERNAL_IP=$(gcloud compute instances describe siege-vm --zone=$VM_ZONE --format="get(networkInterfaces[0].accessConfigs[0].natIP)")
-echo "Siege VM IP: $EXTERNAL_IP"
 
-# Create Cloud Armor denylist security policy
-echo
-echo "${GREEN}Creating Cloud Armor denylist security policy...${RESET}"
-sleep 30
-
-curl -X POST -H "Authorization: Bearer $(gcloud auth print-access-token)" -H "Content-Type: application/json" \
+curl -X POST -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+  -H "Content-Type: application/json" \
   -d '{
-    "adaptiveProtectionConfig": {
-      "layer7DdosDefenseConfig": {
-        "enable": false
-      }
-    },
-    "description": "Security policy to deny specific IP addresses",
     "name": "denylist-siege",
     "rules": [
       {
         "action": "deny(403)",
-        "description": "Deny siege VM IP",
         "match": {
-          "config": {
-            "srcIpRanges": [
-               "'"${EXTERNAL_IP}"'/32"
-            ]
-          },
+          "config": {"srcIpRanges": ["'"${EXTERNAL_IP}"'"]},
           "versionedExpr": "SRC_IPS_V1"
         },
-        "preview": false,
         "priority": 1000
       },
       {
         "action": "allow",
-        "description": "Default rule, higher priority overrides it",
         "match": {
-          "config": {
-            "srcIpRanges": [
-              "*"
-            ]
-          },
+          "config": {"srcIpRanges": ["*"]},
           "versionedExpr": "SRC_IPS_V1"
         },
-        "preview": false,
         "priority": 2147483647
       }
     ],
@@ -393,40 +279,20 @@ curl -X POST -H "Authorization: Bearer $(gcloud auth print-access-token)" -H "Co
   }' \
   "https://compute.googleapis.com/compute/v1/projects/$DEVSHELL_PROJECT_ID/global/securityPolicies"
 
-# Apply security policy to backend service
-echo
-echo "${GREEN}Applying security policy to backend service...${RESET}"
 sleep 30
 
-curl -X POST -H "Authorization: Bearer $(gcloud auth print-access-token)" -H "Content-Type: application/json" \
-  -d "{
-    \"securityPolicy\": \"projects/$DEVSHELL_PROJECT_ID/global/securityPolicies/denylist-siege\"
-  }" \
+# Apply security policy to backend service
+curl -X POST -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+  -H "Content-Type: application/json" \
+  -d '{"securityPolicy": "projects/'"$DEVSHELL_PROJECT_ID"'/global/securityPolicies/denylist-siege"}' \
   "https://compute.googleapis.com/compute/v1/projects/$DEVSHELL_PROJECT_ID/global/backendServices/http-backend/setSecurityPolicy"
 
-# Get load balancer IP
-echo
-echo "${GREEN}Getting load balancer IP address...${RESET}"
+# 12. Run Load Test
+echo "${GREEN}Running load test...${RESET}"
 LB_IP_ADDRESS=$(gcloud compute forwarding-rules describe http-lb-forwarding-rule --global --format="value(IPAddress)")
+
+gcloud compute ssh --zone "$VM_ZONE" "siege-vm" --project "$DEVSHELL_PROJECT_ID" --quiet \
+  --command "sudo apt-get -y install siege && export LB_IP=$LB_IP_ADDRESS && siege -c 150 -t 120s http://\$LB_IP"
+
+echo "${GREEN}${BOLD}Setup completed successfully!${RESET}"
 echo "Load Balancer IP: $LB_IP_ADDRESS"
-
-# Test load balancer (will be blocked by Cloud Armor)
-echo
-echo "${RED}Testing load balancer (should be blocked by Cloud Armor)...${RESET}"
-echo "${YELLOW}Note: This test will fail because siege VM IP is blocked by Cloud Armor${RESET}"
-gcloud compute ssh --zone "$VM_ZONE" "siege-vm" --project "$DEVSHELL_PROJECT_ID" --quiet --command "sudo apt-get -y install siege && export LB_IP=$LB_IP_ADDRESS && siege -c 10 -t 30s http://\$LB_IP"
-
-echo
-echo "${GREEN}All operations completed successfully!${RESET}"
-echo "${BLUE}================================================================${RESET}"
-echo "${CYAN}Load Balancer with Cloud Armor Setup Summary:${RESET}"
-echo "${CYAN}• Regions: $REGION1, $REGION2${RESET}"
-echo "${CYAN}• Managed Instance Groups: Created with autoscaling${RESET}"
-echo "${CYAN}• Health Check: HTTP health check configured${RESET}"
-echo "${CYAN}• Backend Service: Created with CDN enabled${RESET}"
-echo "${CYAN}• Load Balancer: HTTP LB with IPv4 and IPv6 support${RESET}"
-echo "${CYAN}• Cloud Armor: Denylist policy applied${RESET}"
-echo "${CYAN}• Siege VM: Created and blocked by security policy${RESET}"
-echo "${CYAN}• Load Balancer IP: $LB_IP_ADDRESS${RESET}"
-echo "${CYAN}• Blocked IP: $EXTERNAL_IP${RESET}"
-echo "${BLUE}================================================================${RESET}"
