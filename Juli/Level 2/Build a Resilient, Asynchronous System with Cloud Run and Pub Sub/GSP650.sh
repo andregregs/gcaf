@@ -1,19 +1,10 @@
 #!/bin/bash
 
-# ========================================
-# GOOGLE CLOUD MICROSERVICES SETUP SCRIPT
-# ========================================
-# This script sets up a microservices architecture with:
-# - Lab Report Service (Pub/Sub Publisher)
-# - Email Service (Pub/Sub Subscriber) 
-# - SMS Service (Pub/Sub Subscriber)
+# ================================
+# INITIAL SETUP & CONFIGURATION
+# ================================
 
-# ========================================
-# 1. INITIAL CONFIGURATION
-# ========================================
-echo "🔧 Setting up Google Cloud configuration..."
-
-# Authenticate and set project variables
+# Check authentication and set project variables
 gcloud auth list
 export PROJECT_ID=$(gcloud config get-value project)
 export ZONE=$(gcloud compute project-info describe --format="value(commonInstanceMetadata.items[google-compute-default-zone])")
@@ -26,172 +17,153 @@ gcloud config set compute/region $REGION
 # Enable required services
 gcloud services enable run.googleapis.com
 
-echo "✅ Configuration complete!"
-
-# ========================================
-# 2. CREATE PUB/SUB TOPIC
-# ========================================
-echo "📡 Creating Pub/Sub topic..."
-
+# Create Pub/Sub topic
 gcloud pubsub topics create new-lab-report
 
-echo "✅ Pub/Sub topic created!"
-
-# ========================================
-# 3. SETUP PROJECT FILES
-# ========================================
-echo "📁 Cloning project repository..."
-
+# Clone repository
 git clone https://github.com/rosera/pet-theory.git
-cd pet-theory/lab05
 
-echo "✅ Project files ready!"
+# ================================
+# SHARED FUNCTIONS
+# ================================
 
-# ========================================
-# 4. LAB REPORT SERVICE (PUBLISHER)
-# ========================================
-echo "🚀 Setting up Lab Report Service..."
-
-cd lab-service
-
-# Install dependencies
-npm install express body-parser @google-cloud/pubsub
-
-# Create package.json
-cat > package.json << 'EOF'
+create_package_json() {
+    local service_name=$1
+    local dependencies=$2
+    
+    cat > package.json <<EOF
 {
-  "name": "lab-report-service",
+  "name": "$service_name",
   "version": "1.0.0",
-  "description": "Lab Report Service - Publishes reports to Pub/Sub",
+  "description": "Pet Theory Lab - $service_name",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "keywords": [],
   "author": "Patrick - IT",
   "license": "ISC",
   "dependencies": {
-    "@google-cloud/pubsub": "^4.0.0",
     "body-parser": "^1.20.2",
-    "express": "^4.18.2"
+    "express": "^4.18.2"$dependencies
   }
 }
 EOF
+}
 
-# Create main application
-cat > index.js << 'EOF'
-const { PubSub } = require('@google-cloud/pubsub');
+create_dockerfile() {
+    cat > Dockerfile <<EOF
+FROM node:18
+WORKDIR /usr/src/app
+COPY package.json package*.json ./
+RUN npm install --only=production
+COPY . .
+CMD [ "npm", "start" ]
+EOF
+}
+
+deploy_service() {
+    local service_name=$1
+    local allow_unauthenticated=$2
+    
+    gcloud builds submit --tag gcr.io/$GOOGLE_CLOUD_PROJECT/$service_name
+    
+    if [ "$allow_unauthenticated" = "true" ]; then
+        gcloud run deploy $service_name \
+            --image gcr.io/$GOOGLE_CLOUD_PROJECT/$service_name \
+            --platform managed \
+            --region $REGION \
+            --allow-unauthenticated \
+            --max-instances=1
+    else
+        gcloud run deploy $service_name \
+            --image gcr.io/$GOOGLE_CLOUD_PROJECT/$service_name \
+            --platform managed \
+            --region $REGION \
+            --no-allow-unauthenticated \
+            --max-instances=1
+    fi
+}
+
+# ================================
+# LAB REPORT SERVICE
+# ================================
+
+cd pet-theory/lab05/lab-service
+npm install express body-parser @google-cloud/pubsub
+
+# Create package.json with Pub/Sub dependency
+create_package_json "lab-report-service" ',
+    "@google-cloud/pubsub": "^4.0.0"'
+
+# Create lab report service
+cat > index.js <<EOF
+const {PubSub} = require('@google-cloud/pubsub');
+const pubsub = new PubSub();
 const express = require('express');
+const app = express();
 const bodyParser = require('body-parser');
 
-const pubsub = new PubSub();
-const app = express();
+app.use(bodyParser.json());
 const port = process.env.PORT || 8080;
 
-app.use(bodyParser.json());
-
 app.listen(port, () => {
-  console.log(`Lab Report Service listening on port ${port}`);
+  console.log('Lab Report Service listening on port', port);
 });
 
-// Endpoint to receive lab reports and publish to Pub/Sub
 app.post('/', async (req, res) => {
   try {
     const labReport = req.body;
-    console.log(`Publishing lab report: ${labReport.id}`);
-    
     await publishPubSubMessage(labReport);
     res.status(204).send();
-  } catch (error) {
-    console.error('Error publishing message:', error);
-    res.status(500).send(error);
+  } catch (ex) {
+    console.log(ex);
+    res.status(500).send(ex);
   }
 });
 
 async function publishPubSubMessage(labReport) {
   const buffer = Buffer.from(JSON.stringify(labReport));
   await pubsub.topic('new-lab-report').publish(buffer);
-  console.log(`Lab report ${labReport.id} published successfully`);
 }
 EOF
 
-# Create Dockerfile
-cat > Dockerfile << 'EOF'
-FROM node:18
-WORKDIR /usr/src/app
-COPY package.json package*.json ./
-RUN npm install --only=production
-COPY . .
-CMD ["npm", "start"]
-EOF
+create_dockerfile
+deploy_service "lab-report-service" "true"
 
-# Build and deploy
-echo "🔨 Building and deploying Lab Report Service..."
-gcloud builds submit --tag gcr.io/$PROJECT_ID/lab-report-service
+# ================================
+# EMAIL SERVICE
+# ================================
 
-gcloud run deploy lab-report-service \
-  --image gcr.io/$PROJECT_ID/lab-report-service \
-  --platform managed \
-  --region $REGION \
-  --allow-unauthenticated \
-  --max-instances=1
-
-echo "✅ Lab Report Service deployed!"
-
-# ========================================
-# 5. EMAIL SERVICE (SUBSCRIBER)
-# ========================================
-echo "📧 Setting up Email Service..."
-
-cd ../email-service
-
-# Install dependencies
+cd ~/pet-theory/lab05/email-service
 npm install express body-parser
 
-# Create package.json
-cat > package.json << 'EOF'
-{
-  "name": "email-service",
-  "version": "1.0.0",
-  "description": "Email Service - Processes lab reports from Pub/Sub",
-  "main": "index.js",
-  "scripts": {
-    "start": "node index.js"
-  },
-  "author": "Patrick - IT",
-  "license": "ISC",
-  "dependencies": {
-    "body-parser": "^1.20.2",
-    "express": "^4.18.2"
-  }
-}
-EOF
+# Create package.json for email service
+create_package_json "email-service" ""
 
-# Create main application
-cat > index.js << 'EOF'
+# Create email service
+cat > index.js <<EOF
 const express = require('express');
+const app = express();
 const bodyParser = require('body-parser');
 
-const app = express();
+app.use(bodyParser.json());
 const port = process.env.PORT || 8080;
 
-app.use(bodyParser.json());
-
 app.listen(port, () => {
-  console.log(`Email Service listening on port ${port}`);
+  console.log('Email Service listening on port', port);
 });
 
-// Endpoint to receive Pub/Sub messages
 app.post('/', async (req, res) => {
+  const labReport = decodeBase64Json(req.body.message.data);
   try {
-    const labReport = decodeBase64Json(req.body.message.data);
-    console.log(`Email Service: Processing report ${labReport.id}...`);
-    
-    await sendEmail(labReport);
-    console.log(`Email Service: Report ${labReport.id} processed successfully ✉️`);
-    
+    console.log(\`Email Service: Report \${labReport.id} trying...\`);
+    sendEmail();
+    console.log(\`Email Service: Report \${labReport.id} success :-)\`);
     res.status(204).send();
-  } catch (error) {
-    console.error(`Email Service: Report processing failed:`, error);
+  } catch (ex) {
+    console.log(\`Email Service: Report \${labReport.id} failure: \${ex}\`);
     res.status(500).send();
   }
 });
@@ -200,91 +172,46 @@ function decodeBase64Json(data) {
   return JSON.parse(Buffer.from(data, 'base64').toString());
 }
 
-async function sendEmail(labReport) {
-  // Simulate email sending
-  console.log(`Sending email notification for report ${labReport.id}`);
-  // Add actual email logic here
+function sendEmail() {
+  console.log('Sending email');
 }
 EOF
 
-# Create Dockerfile
-cat > Dockerfile << 'EOF'
-FROM node:18
-WORKDIR /usr/src/app
-COPY package.json package*.json ./
-RUN npm install --only=production
-COPY . .
-CMD ["npm", "start"]
-EOF
+create_dockerfile
+deploy_service "email-service" "false"
 
-# Build and deploy
-echo "🔨 Building and deploying Email Service..."
-gcloud builds submit --tag gcr.io/$PROJECT_ID/email-service
+# ================================
+# SMS SERVICE
+# ================================
 
-gcloud run deploy email-service \
-  --image gcr.io/$PROJECT_ID/email-service \
-  --platform managed \
-  --region $REGION \
-  --no-allow-unauthenticated \
-  --max-instances=1
-
-echo "✅ Email Service deployed!"
-
-# ========================================
-# 6. SMS SERVICE (SUBSCRIBER)
-# ========================================
-echo "📱 Setting up SMS Service..."
-
-cd ../sms-service
-
-# Install dependencies
+cd ~/pet-theory/lab05/sms-service
 npm install express body-parser
 
-# Create package.json
-cat > package.json << 'EOF'
-{
-  "name": "sms-service",
-  "version": "1.0.0",
-  "description": "SMS Service - Processes lab reports from Pub/Sub",
-  "main": "index.js",
-  "scripts": {
-    "start": "node index.js"
-  },
-  "author": "Patrick - IT",
-  "license": "ISC",
-  "dependencies": {
-    "body-parser": "^1.20.2",
-    "express": "^4.18.2"
-  }
-}
-EOF
+# Create package.json for SMS service
+create_package_json "sms-service" ""
 
-# Create main application
-cat > index.js << 'EOF'
+# Create SMS service
+cat > index.js <<EOF
 const express = require('express');
+const app = express();
 const bodyParser = require('body-parser');
 
-const app = express();
+app.use(bodyParser.json());
 const port = process.env.PORT || 8080;
 
-app.use(bodyParser.json());
-
 app.listen(port, () => {
-  console.log(`SMS Service listening on port ${port}`);
+  console.log('SMS Service listening on port', port);
 });
 
-// Endpoint to receive Pub/Sub messages
 app.post('/', async (req, res) => {
+  const labReport = decodeBase64Json(req.body.message.data);
   try {
-    const labReport = decodeBase64Json(req.body.message.data);
-    console.log(`SMS Service: Processing report ${labReport.id}...`);
-    
-    await sendSms(labReport);
-    console.log(`SMS Service: Report ${labReport.id} processed successfully 📱`);
-    
+    console.log(\`SMS Service: Report \${labReport.id} trying...\`);
+    sendSms();
+    console.log(\`SMS Service: Report \${labReport.id} success :-)\`);    
     res.status(204).send();
-  } catch (error) {
-    console.error(`SMS Service: Report processing failed:`, error);
+  } catch (ex) {
+    console.log(\`SMS Service: Report \${labReport.id} failure: \${ex}\`);
     res.status(500).send();
   }
 });
@@ -293,105 +220,49 @@ function decodeBase64Json(data) {
   return JSON.parse(Buffer.from(data, 'base64').toString());
 }
 
-async function sendSms(labReport) {
-  // Simulate SMS sending
-  console.log(`Sending SMS notification for report ${labReport.id}`);
-  // Add actual SMS logic here
+function sendSms() {
+  console.log('Sending SMS');
 }
 EOF
 
-# Create Dockerfile
-cat > Dockerfile << 'EOF'
-FROM node:18
-WORKDIR /usr/src/app
-COPY package.json package*.json ./
-RUN npm install --only=production
-COPY . .
-CMD ["npm", "start"]
-EOF
+create_dockerfile
+deploy_service "sms-service" "false"
 
-# Build and deploy
-echo "🔨 Building and deploying SMS Service..."
-gcloud builds submit --tag gcr.io/$PROJECT_ID/sms-service
-
-gcloud run deploy sms-service \
-  --image gcr.io/$PROJECT_ID/sms-service \
-  --platform managed \
-  --region $REGION \
-  --no-allow-unauthenticated \
-  --max-instances=1
-
-echo "✅ SMS Service deployed!"
-
-# ========================================
-# 7. SETUP PUB/SUB SUBSCRIPTIONS
-# ========================================
-echo "🔗 Setting up Pub/Sub subscriptions..."
+# ================================
+# IAM & PUB/SUB SETUP
+# ================================
 
 # Get project number and create service account
-PROJECT_NUMBER=$(gcloud projects list --filter="$PROJECT_ID" --format='value(PROJECT_NUMBER)')
-
+PROJECT_NUMBER=$(gcloud projects list --filter="qwiklabs-gcp" --format='value(PROJECT_NUMBER)')
 gcloud iam service-accounts create pubsub-cloud-run-invoker \
-  --display-name "PubSub Cloud Run Invoker"
+    --display-name "PubSub Cloud Run Invoker"
 
-# Grant permissions for email service
+# Set IAM permissions
 gcloud run services add-iam-policy-binding email-service \
-  --member=serviceAccount:pubsub-cloud-run-invoker@$PROJECT_ID.iam.gserviceaccount.com \
-  --role=roles/run.invoker \
-  --region $REGION \
-  --platform managed
+    --member=serviceAccount:pubsub-cloud-run-invoker@$GOOGLE_CLOUD_PROJECT.iam.gserviceaccount.com \
+    --role=roles/run.invoker \
+    --region $REGION \
+    --platform managed
 
-# Grant permissions for SMS service
-gcloud run services add-iam-policy-binding sms-service \
-  --member=serviceAccount:pubsub-cloud-run-invoker@$PROJECT_ID.iam.gserviceaccount.com \
-  --role=roles/run.invoker \
-  --region $REGION \
-  --platform managed
+gcloud projects add-iam-policy-binding $GOOGLE_CLOUD_PROJECT \
+    --member=serviceAccount:service-$PROJECT_NUMBER@gcp-sa-pubsub.iam.gserviceaccount.com \
+    --role=roles/iam.serviceAccountTokenCreator
 
-# Grant token creator role
-gcloud projects add-iam-policy-binding $PROJECT_ID \
-  --member=serviceAccount:service-$PROJECT_NUMBER@gcp-sa-pubsub.iam.gserviceaccount.com \
-  --role=roles/iam.serviceAccountTokenCreator
-
-# Get service URLs
+# Get email service URL and create subscription
 EMAIL_SERVICE_URL=$(gcloud run services describe email-service \
-  --platform managed \
-  --region=$REGION \
-  --format="value(status.address.url)")
+    --platform managed \
+    --region=$REGION \
+    --format="value(status.address.url)")
 
-SMS_SERVICE_URL=$(gcloud run services describe sms-service \
-  --platform managed \
-  --region=$REGION \
-  --format="value(status.address.url)")
+echo "Email Service URL: $EMAIL_SERVICE_URL"
 
-# Create subscriptions
 gcloud pubsub subscriptions create email-service-sub \
-  --topic new-lab-report \
-  --push-endpoint=$EMAIL_SERVICE_URL \
-  --push-auth-service-account=pubsub-cloud-run-invoker@$PROJECT_ID.iam.gserviceaccount.com
+    --topic new-lab-report \
+    --push-endpoint=$EMAIL_SERVICE_URL \
+    --push-auth-service-account=pubsub-cloud-run-invoker@$GOOGLE_CLOUD_PROJECT.iam.gserviceaccount.com
 
-gcloud pubsub subscriptions create sms-service-sub \
-  --topic new-lab-report \
-  --push-endpoint=$SMS_SERVICE_URL \
-  --push-auth-service-account=pubsub-cloud-run-invoker@$PROJECT_ID.iam.gserviceaccount.com
-
-echo "✅ Pub/Sub subscriptions created!"
-
-# ========================================
-# 8. DEPLOYMENT SUMMARY
-# ========================================
-echo ""
-echo "🎉 DEPLOYMENT COMPLETE!"
-echo "======================================"
-echo "Architecture Overview:"
-echo "1. Lab Report Service - Receives HTTP requests and publishes to Pub/Sub"
-echo "2. Email Service - Subscribes to Pub/Sub and processes email notifications"
-echo "3. SMS Service - Subscribes to Pub/Sub and processes SMS notifications"
-echo ""
+echo "Setup completed successfully!"
 echo "Services deployed:"
-echo "📋 Lab Report Service: $(gcloud run services describe lab-report-service --platform managed --region=$REGION --format="value(status.address.url)")"
-echo "📧 Email Service: $EMAIL_SERVICE_URL"
-echo "📱 SMS Service: $SMS_SERVICE_URL"
-echo ""
-echo "Test your setup by sending a POST request to the Lab Report Service!"
-echo "======================================"
+echo "- Lab Report Service (public)"
+echo "- Email Service (private with Pub/Sub subscription)"
+echo "- SMS Service (private)"
