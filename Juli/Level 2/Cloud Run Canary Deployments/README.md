@@ -8,7 +8,7 @@
 
 ```
 curl -LO raw.githubusercontent.com/andregregs/gcaf/refs/heads/main/Juli/Level%202/Cloud%20Run%20Canary%20Deployments/GSP1078.sh
-sudo chmod +x GSP1078.s
+sudo chmod +x GSP1078.sh
 
-./GSP1078.s
+./GSP1078.sh
 ```
