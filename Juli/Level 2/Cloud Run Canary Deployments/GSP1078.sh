@@ -44,54 +44,92 @@ echo -e "${CYAN}Region: $REGION${NC}"
 # ===============================
 echo -e "\n${GREEN}2. Enabling required APIs...${NC}"
 
-gcloud services enable \
-  cloudresourcemanager.googleapis.com \
-  container.googleapis.com \
-  cloudbuild.googleapis.com \
-  containerregistry.googleapis.com \
-  run.googleapis.com \
-  secretmanager.googleapis.com \
-  iamcredentials.googleapis.com
+# Function to enable API with error handling
+enable_api() {
+    local api=$1
+    echo -e "${PURPLE}Enabling $api...${NC}"
+    
+    if gcloud services enable $api 2>/dev/null; then
+        echo -e "${CYAN}✓ $api enabled successfully${NC}"
+    else
+        echo -e "${YELLOW}⚠ Failed to enable $api or already enabled${NC}"
+    fi
+}
 
-echo -e "${CYAN}APIs enabled successfully${NC}"
+# Enable required APIs one by one
+enable_api "cloudresourcemanager.googleapis.com"
+enable_api "container.googleapis.com"
+enable_api "cloudbuild.googleapis.com"
+enable_api "containerregistry.googleapis.com"
+enable_api "run.googleapis.com"
+enable_api "secretmanager.googleapis.com"
+enable_api "iamcredentials.googleapis.com"
+enable_api "sourcerepo.googleapis.com"
+enable_api "storage.googleapis.com"
+
+echo -e "${CYAN}All APIs enablement completed${NC}"
 
 # ===============================
 # 3. CONFIGURE IAM PERMISSIONS (ENHANCED)
 # ===============================
 echo -e "\n${GREEN}3. Configuring IAM permissions...${NC}"
 
-# Grant Cloud Build Editor role to current user
-echo -e "${PURPLE}Granting Cloud Build Editor role to current user...${NC}"
-gcloud projects add-iam-policy-binding $PROJECT_ID \
-  --member="user:$CURRENT_USER" \
-  --role="roles/cloudbuild.editor"
+# Function to safely add IAM binding
+add_iam_binding() {
+    local member=$1
+    local role=$2
+    local description=$3
+    
+    echo -e "${PURPLE}${description}...${NC}"
+    
+    if gcloud projects add-iam-policy-binding $PROJECT_ID \
+        --member="$member" \
+        --role="$role" 2>/dev/null; then
+        echo -e "${CYAN}✓ Successfully granted $role to $member${NC}"
+    else
+        echo -e "${YELLOW}⚠ Failed to grant $role to $member (may already exist or role not available)${NC}"
+    fi
+}
 
-# Grant Cloud Run Admin role to current user
-gcloud projects add-iam-policy-binding $PROJECT_ID \
-  --member="user:$CURRENT_USER" \
-  --role="roles/run.admin"
+# Grant necessary roles to current user
+add_iam_binding "user:$CURRENT_USER" "roles/cloudbuild.admin" "Granting Cloud Build Admin role to current user"
+add_iam_binding "user:$CURRENT_USER" "roles/run.admin" "Granting Cloud Run Admin role to current user"
+add_iam_binding "user:$CURRENT_USER" "roles/source.admin" "Granting Source Repository Admin role to current user"
+add_iam_binding "user:$CURRENT_USER" "roles/storage.admin" "Granting Storage Admin role to current user"
 
-# Grant Secret Manager Admin role to Cloud Build Service Agent
-gcloud projects add-iam-policy-binding $PROJECT_ID \
-  --member="serviceAccount:service-$PROJECT_NUMBER@gcp-sa-cloudbuild.iam.gserviceaccount.com" \
-  --role="roles/secretmanager.admin"
+# Grant roles to Cloud Build Service Agent
+add_iam_binding "serviceAccount:service-$PROJECT_NUMBER@gcp-sa-cloudbuild.iam.gserviceaccount.com" "roles/secretmanager.admin" "Granting Secret Manager Admin to Cloud Build Service Agent"
+add_iam_binding "serviceAccount:service-$PROJECT_NUMBER@gcp-sa-cloudbuild.iam.gserviceaccount.com" "roles/run.admin" "Granting Cloud Run Admin to Cloud Build Service Agent"
+add_iam_binding "serviceAccount:service-$PROJECT_NUMBER@gcp-sa-cloudbuild.iam.gserviceaccount.com" "roles/storage.admin" "Granting Storage Admin to Cloud Build Service Agent"
 
-# Grant Cloud Build Service Agent additional permissions
-gcloud projects add-iam-policy-binding $PROJECT_ID \
-  --member="serviceAccount:service-$PROJECT_NUMBER@gcp-sa-cloudbuild.iam.gserviceaccount.com" \
-  --role="roles/run.admin"
+# Grant roles to Compute Engine default service account
+add_iam_binding "serviceAccount:$PROJECT_NUMBER-compute@developer.gserviceaccount.com" "roles/run.admin" "Granting Cloud Run Admin to Compute Engine service account"
+add_iam_binding "serviceAccount:$PROJECT_NUMBER-compute@developer.gserviceaccount.com" "roles/cloudbuild.builds.editor" "Granting Cloud Build Builds Editor to Compute Engine service account"
+add_iam_binding "serviceAccount:$PROJECT_NUMBER-compute@developer.gserviceaccount.com" "roles/storage.admin" "Granting Storage Admin to Compute Engine service account"
 
-# Grant Cloud Run Admin to Compute Engine default service account
-gcloud projects add-iam-policy-binding $PROJECT_ID \
-  --member="serviceAccount:$PROJECT_NUMBER-compute@developer.gserviceaccount.com" \
-  --role="roles/run.admin"
+# Create custom role for Cloud Build connections if needed
+echo -e "${PURPLE}Creating custom role for Cloud Build connections...${NC}"
+if ! gcloud iam roles describe CloudBuildConnectionManager --project=$PROJECT_ID 2>/dev/null; then
+    gcloud iam roles create CloudBuildConnectionManager \
+        --project=$PROJECT_ID \
+        --title="Cloud Build Connection Manager" \
+        --description="Custom role for managing Cloud Build connections" \
+        --permissions="cloudbuild.connections.create,cloudbuild.connections.update,cloudbuild.connections.get,cloudbuild.connections.list,cloudbuild.connections.use,cloudbuild.repositories.create,cloudbuild.repositories.get,cloudbuild.repositories.list" \
+        --stage="ALPHA" 2>/dev/null || echo -e "${YELLOW}⚠ Custom role creation failed or already exists${NC}"
+    
+    # Grant custom role to current user
+    add_iam_binding "user:$CURRENT_USER" "projects/$PROJECT_ID/roles/CloudBuildConnectionManager" "Granting custom Cloud Build Connection Manager role"
+fi
 
-# Grant Cloud Build Editor to Compute Engine default service account
-gcloud projects add-iam-policy-binding $PROJECT_ID \
-  --member="serviceAccount:$PROJECT_NUMBER-compute@developer.gserviceaccount.com" \
-  --role="roles/cloudbuild.editor"
+# Alternative: Use predefined roles that should exist
+add_iam_binding "user:$CURRENT_USER" "roles/cloudbuild.builds.editor" "Granting Cloud Build Builds Editor (alternative)"
+add_iam_binding "user:$CURRENT_USER" "roles/source.developer" "Granting Source Repository Developer role"
 
-echo -e "${CYAN}IAM permissions configured successfully${NC}"
+# Grant Owner role as last resort (be careful with this in production)
+echo -e "${YELLOW}If above permissions are insufficient, you may need to grant Owner role temporarily:${NC}"
+echo -e "${CYAN}gcloud projects add-iam-policy-binding $PROJECT_ID --member=\"user:$CURRENT_USER\" --role=\"roles/owner\"${NC}"
+
+echo -e "${CYAN}IAM permissions configuration completed${NC}"
 
 # ===============================
 # 4. GITHUB SETUP AND AUTHENTICATION
@@ -263,32 +301,75 @@ curl -s $PROD_URL || echo -e "${YELLOW}Service test completed${NC}"
 echo -e "\n${CYAN}Initial Cloud Run service deployed successfully${NC}"
 
 # ===============================
-# 10. SETUP CLOUD BUILD CONNECTION (FIXED)
+# 10. SETUP CLOUD BUILD CONNECTION (ENHANCED)
 # ===============================
 echo -e "\n${GREEN}10. Setting up Cloud Build GitHub connection...${NC}"
 
+# Check current user permissions first
+echo -e "${PURPLE}Checking current user permissions...${NC}"
+if ! gcloud projects get-iam-policy $PROJECT_ID --flatten="bindings[].members" --format="value(bindings.role)" --filter="bindings.members:$CURRENT_USER" | grep -q "cloudbuild\|owner"; then
+    echo -e "${YELLOW}⚠ You may need additional permissions. Attempting to grant Owner role...${NC}"
+    gcloud projects add-iam-policy-binding $PROJECT_ID \
+        --member="user:$CURRENT_USER" \
+        --role="roles/owner" || echo -e "${RED}Failed to grant Owner role${NC}"
+fi
+
+# Function to create connection with retry
+create_connection() {
+    local max_attempts=3
+    local attempt=1
+    
+    while [ $attempt -le $max_attempts ]; do
+        echo -e "${PURPLE}Attempt $attempt: Creating Cloud Build connection...${NC}"
+        
+        if gcloud builds connections create github cloud-build-connection \
+            --project=$PROJECT_ID \
+            --region=$REGION; then
+            echo -e "${CYAN}✓ Cloud Build connection created successfully${NC}"
+            return 0
+        else
+            echo -e "${YELLOW}⚠ Attempt $attempt failed${NC}"
+            if [ $attempt -eq $max_attempts ]; then
+                echo -e "${RED}❌ Failed to create connection after $max_attempts attempts${NC}"
+                echo -e "${YELLOW}Please try the following alternatives:${NC}"
+                echo -e "${CYAN}1. Use Google Cloud Console to create the connection manually${NC}"
+                echo -e "${CYAN}2. Grant Owner role: gcloud projects add-iam-policy-binding $PROJECT_ID --member=\"user:$CURRENT_USER\" --role=\"roles/owner\"${NC}"
+                echo -e "${CYAN}3. Contact your GCP administrator for permission assistance${NC}"
+                
+                read -p "Would you like to continue with manual connection setup? (y/N): " continue_manual
+                if [[ $continue_manual =~ ^[Yy]$ ]]; then
+                    echo -e "${YELLOW}Please create the connection manually and press ENTER when ready...${NC}"
+                    read -p "Press ENTER to continue..."
+                    return 0
+                else
+                    return 1
+                fi
+            fi
+            
+            attempt=$((attempt + 1))
+            echo -e "${YELLOW}Waiting 10 seconds before retry...${NC}"
+            sleep 10
+        fi
+    done
+}
+
 # Check if connection already exists
 if gcloud builds connections describe cloud-build-connection --region=$REGION 2>/dev/null; then
-    echo -e "${YELLOW}Connection 'cloud-build-connection' already exists${NC}"
+    echo -e "${CYAN}✓ Connection 'cloud-build-connection' already exists${NC}"
 else
-    # Create Cloud Build connection with error handling
-    echo -e "${PURPLE}Creating Cloud Build connection...${NC}"
-    if ! gcloud builds connections create github cloud-build-connection --project=$PROJECT_ID --region=$REGION; then
-        echo -e "${RED}Failed to create connection. This might be due to insufficient permissions.${NC}"
-        echo -e "${YELLOW}Please ensure you have the required IAM roles.${NC}"
-        echo -e "${YELLOW}Trying alternative approach...${NC}"
-        
-        # Wait a moment and try again
-        sleep 5
-        gcloud builds connections create github cloud-build-connection --project=$PROJECT_ID --region=$REGION
+    # Try to create connection
+    if ! create_connection; then
+        echo -e "${RED}❌ Cannot proceed without Cloud Build connection${NC}"
+        exit 1
     fi
 fi
 
-# Get connection details
-CONNECTION_OUTPUT=$(gcloud builds connections describe cloud-build-connection --region=$REGION --format="value(installationState.actionUri)")
+# Get connection details and handle GitHub App installation
+echo -e "${PURPLE}Retrieving connection details...${NC}"
+CONNECTION_OUTPUT=$(gcloud builds connections describe cloud-build-connection --region=$REGION --format="value(installationState.actionUri)" 2>/dev/null)
 
-if [ ! -z "$CONNECTION_OUTPUT" ]; then
-    echo -e "${PURPLE}Connection created successfully. Please complete the GitHub App installation:${NC}"
+if [ ! -z "$CONNECTION_OUTPUT" ] && [ "$CONNECTION_OUTPUT" != "null" ]; then
+    echo -e "${PURPLE}Please complete the GitHub App installation:${NC}"
     echo -e "${YELLOW}1. Open this URL in your browser: ${CONNECTION_OUTPUT}${NC}"
     echo -e "${YELLOW}2. Install Cloud Build GitHub App${NC}"
     echo -e "${YELLOW}3. Select 'Only select repositories' and choose 'cloudrun-progression'${NC}"
@@ -296,19 +377,26 @@ if [ ! -z "$CONNECTION_OUTPUT" ]; then
     
     read -p "Press ENTER after completing GitHub App installation..."
 else
-    echo -e "${CYAN}Connection appears to be already configured${NC}"
+    echo -e "${CYAN}✓ Connection appears to be already configured${NC}"
 fi
 
-# Create Cloud Build repository with error handling
+# Create Cloud Build repository with enhanced error handling
 echo -e "${PURPLE}Creating Cloud Build repository connection...${NC}"
 if ! gcloud builds repositories describe cloudrun-progression --connection="cloud-build-connection" --region=$REGION 2>/dev/null; then
-    gcloud builds repositories create cloudrun-progression \
-      --remote-uri="https://github.com/${GITHUB_USERNAME}/cloudrun-progression.git" \
-      --connection="cloud-build-connection" \
-      --region=$REGION
+    if ! gcloud builds repositories create cloudrun-progression \
+        --remote-uri="https://github.com/${GITHUB_USERNAME}/cloudrun-progression.git" \
+        --connection="cloud-build-connection" \
+        --region=$REGION; then
+        echo -e "${RED}❌ Failed to create repository connection${NC}"
+        echo -e "${YELLOW}Please ensure GitHub App is properly installed and try again${NC}"
+        exit 1
+    fi
+    echo -e "${CYAN}✓ Repository connection created successfully${NC}"
+else
+    echo -e "${CYAN}✓ Repository connection already exists${NC}"
 fi
 
-echo -e "${CYAN}Cloud Build repository connection established${NC}"
+echo -e "${CYAN}Cloud Build GitHub integration completed${NC}"
 
 # ===============================
 # 11. SETUP BRANCH TRIGGER
