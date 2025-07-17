@@ -353,4 +353,4 @@ echo -e "${CYAN}View Cloud Run revisions: gcloud run revisions list --service=he
 echo -e "${CYAN}View service details: gcloud run services describe hello-cloudrun --region=$REGION${NC}"
 
 echo -e "\n${GREEN}🎉 Cloud Run Progressive Deployment pipeline setup completed!${NC}"
-echo -e "${CYAN}Your CI/CD pipeline is now ready for progressive deployments with GitHub integration.${NC}"
+echo -e "${CYAN}Your CI/CD pipeline is now ready for progressive deployments with GitHub integration${NC}"
