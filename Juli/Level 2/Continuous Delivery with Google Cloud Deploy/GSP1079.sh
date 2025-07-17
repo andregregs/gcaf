@@ -2,6 +2,7 @@
 
 # =====================================================
 # Google Cloud Deploy Pipeline Setup Script
+# Simplified but Complete CI/CD Pipeline
 # =====================================================
 
 # Colors
@@ -10,15 +11,16 @@ GREEN=$'\033[0;32m'
 YELLOW=$'\033[0;33m'
 BLUE=$'\033[0;34m'
 CYAN=$'\033[0;36m'
-RESET=$'\033[0m'
 BOLD=$'\033[1m'
+RESET=$'\033[0m'
 
 clear
 
 echo "${BLUE}${BOLD}"
-echo "=================================================="
-echo "     Google Cloud Deploy Pipeline Setup"
-echo "=================================================="
+echo "╔════════════════════════════════════════╗"
+echo "║     Google Cloud Deploy Pipeline      ║"
+echo "║         Setup & Deployment             ║"
+echo "╚════════════════════════════════════════╝"
 echo "${RESET}"
 
 # =====================================================
@@ -26,36 +28,48 @@ echo "${RESET}"
 # =====================================================
 echo "${BLUE}${BOLD}🔧 Setting up environment...${RESET}"
 
-# Get Zone
 ZONE=$(gcloud compute project-info describe \
 --format="value(commonInstanceMetadata.items[google-compute-default-zone])" 2>/dev/null)
 
 if [ -z "$ZONE" ]; then
-    read -p "Enter ZONE: " ZONE
+    echo "${YELLOW}Zone not detected.${RESET}"
+    while [ -z "$ZONE" ]; do
+        read -p "Enter ZONE: " ZONE
+        if [ -z "$ZONE" ]; then
+            echo "${RED}Zone cannot be empty.${RESET}"
+        fi
+    done
 fi
 export ZONE
-echo "${GREEN}Zone: $ZONE${RESET}"
+echo "${GREEN}✅ Zone: $ZONE${RESET}"
 
-# Get Region
 REGION=$(gcloud compute project-info describe \
 --format="value(commonInstanceMetadata.items[google-compute-default-region])" 2>/dev/null)
 
 if [ -z "$REGION" ]; then
     if [ -n "$ZONE" ]; then
         REGION="${ZONE%-*}"
-    fi
-    if [ -z "$REGION" ]; then
-        read -p "Enter REGION: " REGION
+        if [ -z "$REGION" ] || [ "$REGION" == "$ZONE" ]; then
+            REGION=""
+        fi
     fi
 fi
+
+if [ -z "$REGION" ]; then
+    while [ -z "$REGION" ]; do
+        read -p "Enter REGION: " REGION
+        if [ -z "$REGION" ]; then
+            echo "${RED}Region cannot be empty.${RESET}"
+        fi
+    done
+fi
+
 export REGION
-echo "${GREEN}Region: $REGION${RESET}"
+echo "${GREEN}✅ Region: $REGION${RESET}"
 
-# Get Project ID
 export PROJECT_ID=$(gcloud config get-value project)
-echo "${GREEN}Project: $PROJECT_ID${RESET}"
+echo "${GREEN}✅ Project ID: $PROJECT_ID${RESET}"
 
-# Configure defaults
 gcloud config set compute/region $REGION
 
 # =====================================================
@@ -63,221 +77,355 @@ gcloud config set compute/region $REGION
 # =====================================================
 echo "${BLUE}${BOLD}🔧 Enabling services...${RESET}"
 gcloud services enable \
-    container.googleapis.com \
-    clouddeploy.googleapis.com \
-    artifactregistry.googleapis.com \
-    cloudbuild.googleapis.com \
-    --quiet
+container.googleapis.com \
+clouddeploy.googleapis.com \
+artifactregistry.googleapis.com \
+cloudbuild.googleapis.com \
+clouddeploy.googleapis.com
 
-echo "${YELLOW}Waiting for services to propagate...${RESET}"
-sleep 30
+echo "${YELLOW}Waiting for service propagation...${RESET}"
+for i in $(seq 30 -1 1); do
+    echo -ne "\r⏳ $i seconds remaining..."
+    sleep 1
+done
+echo -e "\r${GREEN}✅ Services enabled${RESET}"
 
 # =====================================================
 # 3. CREATE GKE CLUSTERS
 # =====================================================
 echo "${BLUE}${BOLD}🏗️ Creating GKE clusters...${RESET}"
-gcloud container clusters create test --node-locations=$ZONE --num-nodes=1 --async --quiet
-gcloud container clusters create staging --node-locations=$ZONE --num-nodes=1 --async --quiet
-gcloud container clusters create prod --node-locations=$ZONE --num-nodes=1 --async --quiet
+gcloud container clusters create test --node-locations=$ZONE --num-nodes=1 --async
+gcloud container clusters create staging --node-locations=$ZONE --num-nodes=1 --async
+gcloud container clusters create prod --node-locations=$ZONE --num-nodes=1 --async
 
-echo "${GREEN}Clusters creation started (async)${RESET}"
+gcloud container clusters list --format="csv(name,status)"
 
 # =====================================================
-# 4. SETUP ARTIFACT REGISTRY
+# 4. CREATE ARTIFACT REGISTRY
 # =====================================================
 echo "${BLUE}${BOLD}📦 Creating Artifact Registry...${RESET}"
 gcloud artifacts repositories create web-app \
-    --description="Image registry for tutorial web app" \
-    --repository-format=docker \
-    --location=$REGION \
-    --quiet
+--description="Image registry for tutorial web app" \
+--repository-format=docker \
+--location=$REGION
+echo "${GREEN}✅ Repository created${RESET}"
 
 # =====================================================
 # 5. PREPARE APPLICATION
 # =====================================================
 echo "${BLUE}${BOLD}📁 Preparing application...${RESET}"
 cd ~/
-git clone https://github.com/GoogleCloudPlatform/cloud-deploy-tutorials.git --quiet
+git clone https://github.com/GoogleCloudPlatform/cloud-deploy-tutorials.git
 cd cloud-deploy-tutorials
 git checkout c3cae80 --quiet
 cd tutorials/base
 
-# Generate skaffold config
 envsubst < clouddeploy-config/skaffold.yaml.template > web/skaffold.yaml
 
-# Fix project-id placeholder if exists
 if grep -q "{{project-id}}" web/skaffold.yaml; then
+    cp web/skaffold.yaml web/skaffold.yaml.bak
     sed -i "s/{{project-id}}/$PROJECT_ID/g" web/skaffold.yaml
 fi
 
-# =====================================================
-# 6. BUILD APPLICATION
-# =====================================================
-echo "${BLUE}${BOLD}🔨 Building application...${RESET}"
+echo "${GREEN}✅ Application prepared${RESET}"
 
-# Create Cloud Build bucket if needed
+# =====================================================
+# 6. CREATE CLOUD BUILD BUCKET
+# =====================================================
+echo "${BLUE}${BOLD}🪣 Setting up Cloud Build bucket...${RESET}"
 if ! gsutil ls "gs://${PROJECT_ID}_cloudbuild/" &>/dev/null; then
-    gsutil mb -p "${PROJECT_ID}" -l "${REGION}" "gs://${PROJECT_ID}_cloudbuild/" --quiet
+    if gsutil mb -p "${PROJECT_ID}" -l "${REGION}" -b on "gs://${PROJECT_ID}_cloudbuild/"; then
+        echo "${GREEN}✅ Bucket created${RESET}"
+        sleep 5
+    else
+        echo "${RED}❌ Failed to create bucket${RESET}"
+    fi
+else
+    echo "${GREEN}✅ Bucket exists${RESET}"
 fi
 
-# Build with Skaffold
+# =====================================================
+# 7. BUILD APPLICATION
+# =====================================================
+echo "${BLUE}${BOLD}🔨 Building application...${RESET}"
 cd web
 skaffold build --interactive=false \
-    --default-repo $REGION-docker.pkg.dev/$PROJECT_ID/web-app \
-    --file-output artifacts.json \
-    --quiet
+--default-repo $REGION-docker.pkg.dev/$PROJECT_ID/web-app \
+--file-output artifacts.json
 cd ..
 
 if [ ! -f web/artifacts.json ]; then
     echo "${RED}❌ Build failed - artifacts.json not found${RESET}"
     exit 1
 fi
-
-echo "${GREEN}✅ Build completed${RESET}"
+echo "${GREEN}✅ Build complete${RESET}"
 
 # =====================================================
-# 7. SETUP DELIVERY PIPELINE
+# 8. CONFIGURE CLOUD DEPLOY
 # =====================================================
-echo "${BLUE}${BOLD}🚀 Setting up delivery pipeline...${RESET}"
+echo "${BLUE}${BOLD}⚙️ Configuring Cloud Deploy...${RESET}"
 gcloud config set deploy/region $REGION
 
 cp clouddeploy-config/delivery-pipeline.yaml.template clouddeploy-config/delivery-pipeline.yaml
-gcloud beta deploy apply --file=clouddeploy-config/delivery-pipeline.yaml --quiet
+gcloud beta deploy apply --file=clouddeploy-config/delivery-pipeline.yaml
 
 # =====================================================
-# 8. WAIT FOR CLUSTERS
+# 9. WAIT FOR CLUSTERS
 # =====================================================
-echo "${BLUE}${BOLD}⏳ Waiting for clusters to be ready...${RESET}"
+echo "${BLUE}${BOLD}⏳ Waiting for clusters...${RESET}"
 while true; do
-    RUNNING_COUNT=$(gcloud container clusters list --format="value(status)" | grep -c "RUNNING")
-    if [ "$RUNNING_COUNT" -eq 3 ]; then
-        echo "${GREEN}✅ All clusters are running${RESET}"
-        break
+    cluster_statuses=$(gcloud container clusters list --format="csv(name,status)" | tail -n +2)
+    all_running=true
+
+    if [ -z "$cluster_statuses" ]; then
+        all_running=false
+    else
+        echo "$cluster_statuses" | while IFS=, read -r cluster_name cluster_status; do
+            cluster_name_trimmed=$(echo "$cluster_name" | tr -d '[:space:]')
+            cluster_status_trimmed=$(echo "$cluster_status" | tr -d '[:space:]')
+
+            if [ -z "$cluster_name_trimmed" ]; then
+                continue
+            fi
+
+            echo "${CYAN}$cluster_name_trimmed: $cluster_status_trimmed${RESET}"
+            if [[ "$cluster_status_trimmed" != "RUNNING" ]]; then
+                all_running=false
+            fi
+        done
     fi
-    echo "${YELLOW}Waiting... ($RUNNING_COUNT/3 running)${RESET}"
-    sleep 15
-done
+
+    if [ "$all_running" = true ] && [ -n "$cluster_statuses" ]; then
+        echo "${GREEN}✅ All clusters running${RESET}"
+        break 
+    fi
+    
+    echo "${YELLOW}⏳ Waiting for clusters...${RESET}"
+    for i in $(seq 10 -1 1); do
+        echo -ne "\r⏳ $i seconds remaining..."
+        sleep 1
+    done
+    echo -ne "\r⏳ Re-checking...                               " 
+done 
 
 # =====================================================
-# 9. CONFIGURE KUBERNETES
+# 10. SETUP KUBECTL CONTEXTS
 # =====================================================
-echo "${BLUE}${BOLD}⚙️ Configuring Kubernetes...${RESET}"
+echo "${BLUE}${BOLD}🔑 Setting up kubectl contexts...${RESET}"
 CONTEXTS=("test" "staging" "prod")
-
-# Get credentials and setup contexts
 for CONTEXT in ${CONTEXTS[@]}; do
-    gcloud container clusters get-credentials ${CONTEXT} --region ${REGION} --quiet
+    gcloud container clusters get-credentials ${CONTEXT} --region ${REGION}
     kubectl config rename-context gke_${PROJECT_ID}_${REGION}_${CONTEXT} ${CONTEXT}
 done
+echo "${GREEN}✅ Contexts configured${RESET}"
 
-# Create namespaces
-for CONTEXT in ${CONTEXTS[@]}; do
-    kubectl --context ${CONTEXT} apply -f kubernetes-config/web-app-namespace.yaml
+# =====================================================
+# 11. CREATE NAMESPACES
+# =====================================================
+echo "${BLUE}${BOLD}🏠 Creating namespaces...${RESET}"
+for CONTEXT_NAME in ${CONTEXTS[@]}; do
+    MAX_RETRIES=20
+    RETRY_COUNT=0
+    SUCCESS=false
+    while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+        if kubectl --context ${CONTEXT_NAME} apply -f kubernetes-config/web-app-namespace.yaml; then
+            echo "${GREEN}✅ Namespace applied to $CONTEXT_NAME${RESET}"
+            SUCCESS=true
+            break
+        else
+            RETRY_COUNT=$((RETRY_COUNT+1))
+            echo "${YELLOW}⚠️ Retry $RETRY_COUNT/$MAX_RETRIES for $CONTEXT_NAME${RESET}"
+            
+            for i in $(seq 5 -1 1); do
+                echo -ne "\r⏳ $i seconds remaining..."
+                sleep 1
+            done
+            echo -e "\r⏳ Retrying...                               "
+        fi
+    done
+    if [ "$SUCCESS" != true ]; then
+        echo "${RED}❌ Failed to apply namespace to $CONTEXT_NAME${RESET}"
+    fi
 done
 
 # =====================================================
-# 10. SETUP DEPLOYMENT TARGETS
+# 12. CREATE DEPLOYMENT TARGETS
 # =====================================================
-echo "${BLUE}${BOLD}🎯 Setting up deployment targets...${RESET}"
+echo "${BLUE}${BOLD}🎯 Creating deployment targets...${RESET}"
 for CONTEXT in ${CONTEXTS[@]}; do
     envsubst < clouddeploy-config/target-$CONTEXT.yaml.template > clouddeploy-config/target-$CONTEXT.yaml
-    gcloud beta deploy apply --file=clouddeploy-config/target-$CONTEXT.yaml --quiet
+    gcloud beta deploy apply --file=clouddeploy-config/target-$CONTEXT.yaml --region=${REGION} --project=${PROJECT_ID}
 done
+echo "${GREEN}✅ Targets configured${RESET}"
 
 sleep 10
 
 # =====================================================
-# 11. CREATE RELEASE AND DEPLOY
+# 13. CREATE RELEASE
 # =====================================================
 echo "${BLUE}${BOLD}🚀 Creating release...${RESET}"
 gcloud beta deploy releases create web-app-001 \
-    --delivery-pipeline web-app \
-    --build-artifacts web/artifacts.json \
-    --source web/ \
-    --quiet
+  --delivery-pipeline web-app \
+  --build-artifacts web/artifacts.json \
+  --source web/ \
+  --project=${PROJECT_ID} \
+  --region=${REGION}
 
-# Wait for test deployment
-echo "${YELLOW}Deploying to test...${RESET}"
-while true; do
-    STATUS=$(gcloud beta deploy rollouts list --delivery-pipeline web-app --release web-app-001 --filter="targetId=test" --format="value(state)" | head -n 1)
-    if [ "$STATUS" == "SUCCEEDED" ]; then
-        echo "${GREEN}✅ Test deployment succeeded${RESET}"
-        break
-    elif [[ "$STATUS" == "FAILED" || "$STATUS" == "CANCELLED" ]]; then
-        echo "${RED}❌ Test deployment failed${RESET}"
-        exit 1
-    fi
-    sleep 10
-done
+RELEASE_CREATION_STATUS=$?
 
-# Promote to staging
-echo "${YELLOW}Promoting to staging...${RESET}"
-gcloud beta deploy releases promote --delivery-pipeline web-app --release web-app-001 --quiet
-
-while true; do
-    STATUS=$(gcloud beta deploy rollouts list --delivery-pipeline web-app --release web-app-001 --filter="targetId=staging" --format="value(state)" | head -n 1)
-    if [ "$STATUS" == "SUCCEEDED" ]; then
-        echo "${GREEN}✅ Staging deployment succeeded${RESET}"
-        break
-    elif [[ "$STATUS" == "FAILED" || "$STATUS" == "CANCELLED" ]]; then
-        echo "${RED}❌ Staging deployment failed${RESET}"
-        exit 1
-    fi
-    sleep 10
-done
-
-# Promote to production
-echo "${YELLOW}Promoting to production...${RESET}"
-gcloud beta deploy releases promote --delivery-pipeline web-app --release web-app-001 --quiet
-
-# Wait for approval state
-sleep 5
-ROLLOUT_NAME=$(gcloud beta deploy rollouts list --delivery-pipeline web-app --release web-app-001 --filter="targetId=prod" --format="value(name)" | head -n 1)
-
-if [ -n "$ROLLOUT_NAME" ]; then
-    ROLLOUT_ID=$(basename "$ROLLOUT_NAME")
-    echo "${YELLOW}Approving production deployment...${RESET}"
-    gcloud beta deploy rollouts approve $ROLLOUT_ID --delivery-pipeline web-app --release web-app-001 --quiet
-    
-    while true; do
-        STATUS=$(gcloud beta deploy rollouts list --delivery-pipeline web-app --release web-app-001 --filter="targetId=prod" --format="value(state)" | head -n 1)
-        if [ "$STATUS" == "SUCCEEDED" ]; then
-            echo "${GREEN}✅ Production deployment succeeded${RESET}"
-            break
-        elif [[ "$STATUS" == "FAILED" || "$STATUS" == "CANCELLED" ]]; then
-            echo "${RED}❌ Production deployment failed${RESET}"
-            exit 1
-        fi
-        sleep 10
-    done
+if [ $RELEASE_CREATION_STATUS -eq 0 ]; then
+    echo "${GREEN}✅ Release created${RESET}"
+else
+    echo "${RED}❌ Release creation failed${RESET}"
+    exit 1
 fi
 
 # =====================================================
-# 12. VERIFY DEPLOYMENTS
+# 14. DEPLOY TO TEST
 # =====================================================
-echo "${BLUE}${BOLD}🔍 Verifying deployments...${RESET}"
+test_rollout_succeeded=false
+echo "${BLUE}${BOLD}⏳ Deploying to test...${RESET}"
+while true; do
+    status=$(gcloud beta deploy rollouts list --delivery-pipeline web-app --release web-app-001 --filter="targetId=test" --format="value(state)" | head -n 1)
 
-for CONTEXT in ${CONTEXTS[@]}; do
-    echo "${CYAN}--- $CONTEXT environment ---${RESET}"
-    kubectx $CONTEXT
-    kubectl get pods -n web-app
-    echo
+    if [ "$status" == "SUCCEEDED" ]; then
+        echo -e "\r${GREEN}🎉 Test deployment SUCCEEDED${RESET}"
+        test_rollout_succeeded=true
+        break
+    elif [[ "$status" == "FAILED" || "$status" == "CANCELLED" || "$status" == "HALTED" ]]; then
+        echo -e "\r${RED}❌ Test deployment $status${RESET}"
+        test_rollout_succeeded=false
+        break
+    fi
+
+    current_status_display=${status:-"UNKNOWN"}
+    for i in $(seq 10 -1 1); do
+        echo -ne "\r⏳ Test status: $current_status_display ($i sec)"
+        sleep 1
+    done
 done
 
-# =====================================================
-# COMPLETION
-# =====================================================
-echo "${GREEN}${BOLD}"
-echo "=================================================="
-echo "🎉 DEPLOYMENT COMPLETE!"
-echo "=================================================="
-echo "${RESET}"
-echo "${GREEN}✅ All environments deployed successfully:${RESET}"
-echo "${CYAN}   - Test environment${RESET}"
-echo "${CYAN}   - Staging environment${RESET}"
-echo "${CYAN}   - Production environment${RESET}"
+if [ "$test_rollout_succeeded" = true ]; then
+    echo "${BLUE}🔬 Verifying test deployment...${RESET}"
+    kubectx test
+    kubectl get all -n web-app
+
+    # =====================================================
+    # 15. DEPLOY TO STAGING
+    # =====================================================
+    echo "${BLUE}${BOLD}➡️ Promoting to staging...${RESET}"
+    gcloud beta deploy releases promote \
+    --delivery-pipeline web-app \
+    --release web-app-001 \
+    --quiet
+
+    staging_rollout_succeeded=false
+    while true; do
+        status=$(gcloud beta deploy rollouts list --delivery-pipeline web-app --release web-app-001 --filter="targetId=staging" --format="value(state)" | head -n 1)
+
+        if [ "$status" == "SUCCEEDED" ]; then
+            echo -e "\r${GREEN}🎉 Staging deployment SUCCEEDED${RESET}"
+            staging_rollout_succeeded=true
+            break
+        elif [[ "$status" == "FAILED" || "$status" == "CANCELLED" || "$status" == "HALTED" ]]; then
+            echo -e "\r${RED}❌ Staging deployment $status${RESET}"
+            staging_rollout_succeeded=false
+            break
+        fi
+
+        current_status_display=${status:-"UNKNOWN"}
+        for i in $(seq 10 -1 1); do
+            echo -ne "\r⏳ Staging status: $current_status_display ($i sec)"
+            sleep 1
+        done
+    done
+
+    if [ "$staging_rollout_succeeded" = true ]; then
+        # =====================================================
+        # 16. DEPLOY TO PRODUCTION
+        # =====================================================
+        echo "${BLUE}${BOLD}➡️ Promoting to production...${RESET}"
+        gcloud beta deploy releases promote \
+        --delivery-pipeline web-app \
+        --release web-app-001 \
+        --quiet
+
+        prod_rollout_pending_approval=false
+        echo "${BLUE}⏳ Waiting for approval state...${RESET}"
+        while true; do
+            status=$(gcloud beta deploy rollouts list --delivery-pipeline web-app --release web-app-001 --filter="targetId=prod" --format="value(state)" | head -n 1)
+
+            if [ "$status" == "PENDING_APPROVAL" ]; then
+                echo -e "\r${GREEN}👍 Production pending approval${RESET}"
+                prod_rollout_pending_approval=true
+                break
+            elif [[ "$status" == "FAILED" || "$status" == "CANCELLED" || "$status" == "HALTED" || "$status" == "SUCCEEDED" ]]; then
+                echo -e "\r${RED}❌ Production status: $status${RESET}"
+                prod_rollout_pending_approval=false
+                break
+            fi
+
+            current_status_display=${status:-"UNKNOWN"}
+            for i in $(seq 10 -1 1); do
+                echo -ne "\r⏳ Prod status: $current_status_display ($i sec)"
+                sleep 1
+            done
+        done
+
+        if [ "$prod_rollout_pending_approval" = true ]; then
+            prod_rollout_name=$(gcloud beta deploy rollouts list \
+                --delivery-pipeline web-app \
+                --release web-app-001 \
+                --filter="targetId=prod AND state=PENDING_APPROVAL" \
+                --format="value(name)" | head -n 1)
+
+            if [ -n "$prod_rollout_name" ]; then
+                echo "${BLUE}✅ Approving production deployment...${RESET}"
+                gcloud beta deploy rollouts approve "$prod_rollout_name" \
+                --delivery-pipeline web-app \
+                --release web-app-001 \
+                --quiet
+
+                prod_rollout_succeeded=false
+                while true; do
+                    status=$(gcloud beta deploy rollouts list --delivery-pipeline web-app --release web-app-001 --filter="targetId=prod" --format="value(state)" | head -n 1)
+
+                    if [ "$status" == "SUCCEEDED" ]; then
+                        echo -e "\r${GREEN}🎉 Production deployment SUCCEEDED${RESET}"
+                        prod_rollout_succeeded=true
+                        break
+                    elif [[ "$status" == "FAILED" || "$status" == "CANCELLED" || "$status" == "HALTED" ]]; then
+                        echo -e "\r${RED}❌ Production deployment $status${RESET}"
+                        prod_rollout_succeeded=false
+                        break
+                    fi
+
+                    current_status_display=${status:-"UNKNOWN"}
+                    for i in $(seq 10 -1 1); do
+                        echo -ne "\r⏳ Prod status: $current_status_display ($i sec)"
+                        sleep 1
+                    done
+                done
+
+                if [ "$prod_rollout_succeeded" = true ]; then
+                    echo "${BLUE}🔬 Verifying production deployment...${RESET}"
+                    kubectx prod
+                    kubectl get all -n web-app
+                fi
+            else
+                echo "${RED}❌ Could not find rollout to approve${RESET}"
+            fi
+        fi
+    else
+        echo "${RED}❌ Staging failed - skipping production${RESET}"
+    fi
+else
+    echo "${RED}❌ Test failed - skipping remaining deployments${RESET}"
+fi
+
 echo
-echo "${BLUE}📊 Check deployments:${RESET}"
-echo "   gcloud beta deploy releases list --delivery-pipeline web-app"
-echo "   gcloud beta deploy rollouts list --delivery-pipeline web-app"
+echo "${GREEN}${BOLD}🎉 Deployment pipeline complete!${RESET}"
+echo "${BLUE}Commands for monitoring:${RESET}"
+echo "  gcloud beta deploy releases list --delivery-pipeline web-app"
+echo "  gcloud beta deploy rollouts list --delivery-pipeline web-app"
 echo
