@@ -18,7 +18,7 @@ clear
 
 echo "${BLUE}${BOLD}"
 echo "╔════════════════════════════════════════╗"
-echo "║     Google Cloud Deploy Pipeline      ║"
+echo "║     Google Cloud Deploy Pipeline       ║"
 echo "║         Setup & Deployment             ║"
 echo "╚════════════════════════════════════════╝"
 echo "${RESET}"
