@@ -1,4 +1,4 @@
-#  Cloud Run Canary Deployments
+#  Build a Resilient, Asynchronous System with Cloud Run and Pub/Sub
 
 
 #### ⚠️ Disclaimer :
@@ -7,8 +7,8 @@
 ### Run the following Commands in CloudShell 
 
 ```
-curl -LO raw.githubusercontent.com/andregregs/gcaf/refs/heads/main/Juli/Level%202/Cloud%20Run%20Canary%20Deployments/GSP1078.sh
-sudo chmod +x GSP1078.sh
+curl -LO raw.githubusercontent.com/andregregs/gcaf/refs/heads/main/Juli/Level%202/Build%20a%20Resilient%2C%20Asynchronous%20System%20with%20Cloud%20Run%20and%20Pub%20Sub/GSP650.sh
+sudo chmod +x GSP650.sh
 
-./GSP1078.sh
+./GSP650.sh
 ```
