@@ -7,8 +7,8 @@
 ### Run the following Commands in CloudShell 
 
 ```
-curl -LO raw.githubusercontent.com/andregregs/gcaf/refs/heads/main/Juli/Level%203/Create%20a%20Python%20Artifact%20Registry%20and%20Upload%20Code/gem-artifact-registry-python.sh
-sudo chmod +x gem-artifact-registry-python.sh
+curl -LO raw.githubusercontent.com/andregregs/gcaf/refs/heads/main/Juli/Level%203/Create%20a%20Maven%20Artifact%20Registry%20and%20Upload%20Code/gem-artifact-registry-maven.sh
+sudo chmod +x gem-artifact-registry-maven.sh
 
-./gem-artifact-registry-python.sh
+./gem-artifact-registry-maven.sh
 ```
