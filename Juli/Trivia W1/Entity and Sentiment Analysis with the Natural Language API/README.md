@@ -7,8 +7,8 @@
 ### Run the following Commands in CloudShell 
 
 ```
-curl -LO raw.githubusercontent.com/andregregs/gcaf/refs/heads/main/Juli/Level%203/Create%20a%20Maven%20Artifact%20Registry%20and%20Upload%20Code/gem-artifact-registry-maven.sh
-sudo chmod +x gem-artifact-registry-maven.sh
+curl -LO raw.githubusercontent.com/andregregs/gcaf/refs/heads/main/Juli/Trivia%20W1/Entity%20and%20Sentiment%20Analysis%20with%20the%20Natural%20Language%20API/GSP038.sh
+sudo chmod +x GSP038.sh
 
-./gem-artifact-registry-maven.sh
+./GSP038.sh
 ```
