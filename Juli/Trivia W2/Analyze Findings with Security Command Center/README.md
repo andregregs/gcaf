@@ -1,4 +1,4 @@
-#  Orchestrating the Cloud with Kubernetes
+#  Analyze Findings with Security Command Center
 
 
 #### ⚠️ Disclaimer :
@@ -7,8 +7,8 @@
 ### Run the following Commands in CloudShell 
 
 ```
-curl -LO raw.githubusercontent.com/andregregs/gcaf/refs/heads/main/Juli/Level%202/Orchestrating%20the%20Cloud%20with%20Kubernetes/GSP021.sh
-sudo chmod +x GSP021.sh
+curl -LO raw.githubusercontent.com/andregregs/gcaf/refs/heads/main/Juli/Trivia%20W2/Log%20Analytics%20on%20Google%20Cloud/GSP1088.sh
+sudo chmod +x GSP1088.sh
 
-./GSP021.sh
+./GSP1088.sh
 ```

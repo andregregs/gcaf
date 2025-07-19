@@ -1,4 +1,4 @@
-#  Running a Containerized App on Google Kubernetes Engine
+#  Managing Deployments Using Kubernetes Engine
 
 
 #### ⚠️ Disclaimer :
