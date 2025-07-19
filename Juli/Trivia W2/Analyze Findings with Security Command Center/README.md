@@ -12,3 +12,19 @@ sudo chmod +x GSP1164.sh
 
 ./GSP1164.sh
 ```
+
+### Paste in the following schema:
+```
+[   
+  {
+    "mode": "NULLABLE",
+    "name": "resource",
+    "type": "JSON"
+  },   
+  {
+    "mode": "NULLABLE",
+    "name": "finding",
+    "type": "JSON"
+  }
+]
+```
