@@ -1,9 +1,5 @@
 #!/bin/bash
 
-# =====================================================
-# GKE Day 2 Operations Setup Script
-# Microservices Demo Deployment with Logging Setup
-# =====================================================
 
 # Colors
 RED='\033[0;31m'
