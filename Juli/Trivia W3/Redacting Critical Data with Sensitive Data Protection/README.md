@@ -7,8 +7,8 @@
 ### Run the following Commands in CloudShell 
 
 ```
-curl -LO raw.githubusercontent.com/andregregs/gcaf/refs/heads/main/Juli/Trivia%20W3/Log%20Analytics%20on%20Google%20Cloud/GSP1088.sh
-sudo chmod +x GSP1088.sh
+curl -LO raw.githubusercontent.com/andregregs/gcaf/refs/heads/main/Juli/Trivia%20W3/Redacting%20Critical%20Data%20with%20Sensitive%20Data%20Protection/GSP864.sh
+sudo chmod +x GSP864.sh
 
-./GSP1088.sh
+./GSP864.sh
 ```
