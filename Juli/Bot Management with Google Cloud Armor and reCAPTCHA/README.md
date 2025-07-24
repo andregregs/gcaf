@@ -11,8 +11,8 @@ export ZONE=
 ```
 
 ```
-curl -LO raw.githubusercontent.com/andregregs/gcaf/refs/heads/main/Juli/Level%203/Create%20a%20Container%20Artifact%20Registry%20and%20Upload%20Code/gem-artifact-registry-container.sh
-sudo chmod +x gem-artifact-registry-container.sh
+curl -LO raw.githubusercontent.com/andregregs/gcaf/refs/heads/main/Juli/Bot%20Management%20with%20Google%20Cloud%20Armor%20and%20reCAPTCHA/GSP877.sh
+sudo chmod +x GSP877.sh
 
-./gem-artifact-registry-container.sh
+./GSP877.sh
 ```
