@@ -1,4 +1,4 @@
-#  Create VPC Peering Connection between VPCs
+#  App Engine: Qwik Start - Java
 
 
 #### ⚠️ Disclaimer :
@@ -7,8 +7,8 @@
 ### Run the following Commands in CloudShell 
 
 ```
-curl -LO raw.githubusercontent.com/andregregs/gcaf/refs/heads/main/Agustus/Trivia%20W4/Create%20VPC%20Peering%20Connection%20between%20VPCs/script.sh
-sudo chmod +x script.sh
+curl -LO raw.githubusercontent.com/andregregs/gcaf/refs/heads/main/Agustus/Level%201/App%20Engine%20Qwik%20Start%20-%20Java/GSP068.sh
+sudo chmod +x GSP068.sh
 
-./script.sh
+./GSP068.sh
 ```
