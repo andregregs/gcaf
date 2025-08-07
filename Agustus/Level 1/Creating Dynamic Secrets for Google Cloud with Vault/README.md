@@ -7,8 +7,8 @@
 ### Run the following Commands in CloudShell 
 
 ```
-curl -LO raw.githubusercontent.com/andregregs/gcaf/refs/heads/main/Agustus/Level%201/App%20Engine%20Qwik%20Start%20-%20Java/GSP068.sh
-sudo chmod +x GSP068.sh
+curl -LO raw.githubusercontent.com/andregregs/gcaf/refs/heads/main/Agustus/Level%201/Creating%20Dynamic%20Secrets%20for%20Google%20Cloud%20with%20Vault/GSP1007.sh
+sudo chmod +x GSP1007.sh
 
-./GSP068.sh
+./GSP1007.sh
 ```
