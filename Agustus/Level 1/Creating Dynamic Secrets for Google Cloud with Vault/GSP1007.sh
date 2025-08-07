@@ -32,9 +32,9 @@ print_error() {
 }
 
 print_step() {
-    echo -e "\n${PURPLE}╔════════════════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${PURPLE}║${NC} ${BOLD}$1${NC}"
-    echo -e "${PURPLE}╚════════════════════════════════════════════════════════════════════════╝${NC}"
+    echo -e "\n${PURPLE}════════════════════════════════════════════════════════════════════════${NC}"
+    echo -e "${BOLD}$1${NC}"
+    echo -e "${PURPLE}════════════════════════════════════════════════════════════════════════${NC}"
 }
 
 print_task() {
@@ -359,42 +359,4 @@ print_success "Static account for service account keys configured successfully!"
 
 echo -e "\n${GREEN}✓ TASK 6 COMPLETED: Static accounts configuration successful!${NC}"
 
-# =============================================================================
-# FINAL SUMMARY
-# =============================================================================
-print_step "🎉 LAB COMPLETION SUMMARY"
-
-echo -e "\n${GREEN}╔════════════════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${GREEN}║                           LAB COMPLETED SUCCESSFULLY!                     ║${NC}"
-echo -e "${GREEN}╚════════════════════════════════════════════════════════════════════════╝${NC}"
-
-echo -e "\n${CYAN}📋 What was accomplished:${NC}"
-echo -e "${WHITE}✓ Vault Server:${NC} Running on http://127.0.0.1:8200"
-echo -e "${WHITE}✓ GCP Integration:${NC} Configured and tested"
-echo -e "${WHITE}✓ OAuth2 Rolesets:${NC} my-token-roleset"
-echo -e "${WHITE}✓ Service Account Key Rolesets:${NC} my-key-roleset"
-echo -e "${WHITE}✓ Static Accounts:${NC} my-token-account, my-key-account"
-echo -e "${WHITE}✓ Project ID:${NC} $PROJECT_ID"
-echo -e "${WHITE}✓ Service Account:${NC} $SERVICE_ACCOUNT_EMAIL"
-
-echo -e "\n${CYAN}📁 Important Files Created:${NC}"
-echo -e "${WHITE}• config.hcl${NC} - Vault server configuration"
-echo -e "${WHITE}• bindings.hcl${NC} - IAM bindings configuration"
-echo -e "${WHITE}• vault_init_output.txt${NC} - Unseal keys and root token (KEEP SECURE!)"
-echo -e "${WHITE}• vault_server.log${NC} - Server logs"
-echo -e "${WHITE}• token_output.txt${NC} - OAuth2 token generation output"
-echo -e "${WHITE}• key_output.txt${NC} - Service account key generation output"
-
-echo -e "\n${CYAN}🔧 Useful Commands:${NC}"
-echo -e "${WHITE}• Check Vault status:${NC} vault status"
-echo -e "${WHITE}• Generate OAuth2 token:${NC} vault read gcp/roleset/my-token-roleset/token"
-echo -e "${WHITE}• Generate service account key:${NC} vault read gcp/roleset/my-key-roleset/key"
-echo -e "${WHITE}• Access Vault UI:${NC} http://127.0.0.1:8200 (use root token from vault_init_output.txt)"
-
-echo -e "\n${YELLOW}⚠️  Security Reminders:${NC}"
-echo -e "${RED}• Keep vault_init_output.txt secure and backed up${NC}"
-echo -e "${RED}• In production, never disable TLS${NC}"
-echo -e "${RED}• Use proper key management for unseal keys${NC}"
-echo -e "${RED}• Regularly rotate service account keys${NC}"
-
-echo -e "\n${GREEN}🚀 Lab completed successfully! All tasks have been accomplished.${NC}"
+print_success "All lab tasks completed successfully! 🎉"
