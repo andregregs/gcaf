@@ -1,65 +1,85 @@
 #!/bin/bash
 
-# =========================================================
-# HashiCorp Vault with Google Cloud Platform Integration
-# =========================================================
-# Deskripsi: Script untuk setup Vault dengan GCP secrets engine
-# untuk dynamic credential generation dan static accounts
-# =========================================================
+# HashiCorp Vault Setup with GCP Integration
+# This script sets up Vault server and configures GCP secrets engine
 
-set -e  # Keluar jika ada error
+# Color codes for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+PURPLE='\033[0;35m'
+CYAN='\033[0;36m'
+WHITE='\033[1;37m'
+NC='\033[0m' # No Color
 
-echo "=== HashiCorp Vault GCP Integration Setup ==="
-echo "Setting up Vault server with GCP secrets engine"
-echo ""
+# Function to print colored status messages
+print_status() {
+    echo -e "${BLUE}[INFO]${NC} $1"
+}
 
-# =========================================================
-# Step 1: Environment Setup & Authentication
-# =========================================================
-echo "Step 1: Setting up environment variables..."
+print_success() {
+    echo -e "${GREEN}[SUCCESS]${NC} $1"
+}
 
-# Google Cloud authentication
+print_warning() {
+    echo -e "${YELLOW}[WARNING]${NC} $1"
+}
+
+print_error() {
+    echo -e "${RED}[ERROR]${NC} $1"
+}
+
+print_step() {
+    echo -e "\n${PURPLE}================================${NC}"
+    echo -e "${WHITE}STEP: $1${NC}"
+    echo -e "${PURPLE}================================${NC}"
+}
+
+# =============================================================================
+# STEP 1: Initial Setup and Environment Configuration
+# =============================================================================
+print_step "1. Initial Setup and Environment Configuration"
+
+print_status "Authenticating with Google Cloud..."
 gcloud auth list
 
-# Set environment variables
-export ZONE=$(gcloud compute project-info describe \
-  --format="value(commonInstanceMetadata.items[google-compute-default-zone])")
-export REGION=$(gcloud compute project-info describe \
-  --format="value(commonInstanceMetadata.items[google-compute-default-region])")
+print_status "Setting up environment variables..."
+export ZONE=$(gcloud compute project-info describe --format="value(commonInstanceMetadata.items[google-compute-default-zone])")
+export REGION=$(gcloud compute project-info describe --format="value(commonInstanceMetadata.items[google-compute-default-region])")
 export PROJECT_ID=$(gcloud config get-value project)
 export PROJECT_ID=$DEVSHELL_PROJECT_ID
 
-echo "Zone: $ZONE"
-echo "Region: $REGION"
-echo "Project ID: $PROJECT_ID"
-echo ""
+echo -e "${CYAN}Project ID: ${WHITE}$PROJECT_ID${NC}"
+echo -e "${CYAN}Zone: ${WHITE}$ZONE${NC}"
+echo -e "${CYAN}Region: ${WHITE}$REGION${NC}"
 
-# =========================================================
-# Step 2: Install HashiCorp Vault
-# =========================================================
-echo "Step 2: Installing HashiCorp Vault..."
+print_success "Environment configuration completed!"
 
-# Add HashiCorp GPG key
+# =============================================================================
+# STEP 2: HashiCorp Vault Installation
+# =============================================================================
+print_step "2. HashiCorp Vault Installation"
+
+print_status "Adding HashiCorp APT repository..."
 curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo apt-key add -
-
-# Add HashiCorp repository
 sudo apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
 
-# Update and install Vault
+print_status "Installing Vault..."
 sudo apt-get update
-sudo apt-get install -y vault
+sudo apt-get install vault -y
 
-# Verify installation
+print_status "Verifying Vault installation..."
 vault --version
-echo "✅ Vault installed successfully"
-echo ""
 
-# =========================================================
-# Step 3: Create Vault Configuration
-# =========================================================
-echo "Step 3: Creating Vault configuration..."
+print_success "Vault installation completed!"
 
-# Create Vault configuration file
+# =============================================================================
+# STEP 3: Vault Server Configuration
+# =============================================================================
+print_step "3. Vault Server Configuration"
+
+print_status "Creating Vault configuration file..."
 cat > config.hcl <<EOF_CP
 storage "raft" {
   path    = "./vault/data"
@@ -72,113 +92,87 @@ listener "tcp" {
 }
 
 api_addr = "http://127.0.0.1:8200"
-cluster_addr = "https://127.0.0.1:8201"
+cluster_addr = "https://127.0.1:8201"
 ui = true
 EOF_CP
 
-echo "✅ Vault configuration created"
-echo ""
-
-# =========================================================
-# Step 4: Start Vault Server
-# =========================================================
-echo "Step 4: Starting Vault server..."
-
-# Create data directory
+print_status "Creating data directory..."
 mkdir -p ./vault/data
 
-# Start Vault server in background
+print_success "Vault configuration completed!"
+
+# =============================================================================
+# STEP 4: Vault Server Startup and Initialization
+# =============================================================================
+print_step "4. Vault Server Startup and Initialization"
+
+print_status "Starting Vault server in background..."
 nohup vault server -config=config.hcl > vault_server.log 2>&1 &
 
-# Wait for server to start
+print_status "Waiting for server to start (10 seconds)..."
 sleep 10
 
-# Set Vault address
+print_status "Setting Vault address..."
 export VAULT_ADDR='http://127.0.0.1:8200'
 
-echo "✅ Vault server started at $VAULT_ADDR"
-echo ""
-
-# =========================================================
-# Step 5: Initialize and Unseal Vault
-# =========================================================
-echo "Step 5: Initializing and unsealing Vault..."
-
-# Initialize Vault with 5 key shares and threshold of 3
+print_status "Initializing Vault..."
 vault operator init -key-shares=5 -key-threshold=3 > vault_init_output.txt
 
-# Extract unseal keys and root token
+print_success "Vault server started and initialized!"
+
+# =============================================================================
+# STEP 5: Vault Unsealing Process
+# =============================================================================
+print_step "5. Vault Unsealing Process"
+
+print_status "Extracting unseal keys and root token..."
 KEY_1=$(grep 'Unseal Key 1:' vault_init_output.txt | awk '{print $NF}')
 KEY_2=$(grep 'Unseal Key 2:' vault_init_output.txt | awk '{print $NF}')
 KEY_3=$(grep 'Unseal Key 3:' vault_init_output.txt | awk '{print $NF}')
 TOKEN=$(grep 'Initial Root Token:' vault_init_output.txt | awk '{print $NF}')
 
-echo "Unsealing Vault with 3 keys..."
+print_status "Unsealing Vault with 3 keys..."
 vault operator unseal $KEY_1
 vault operator unseal $KEY_2
 vault operator unseal $KEY_3
 
-# Login to Vault
+print_status "Logging into Vault..."
 vault login $TOKEN
 
-echo "✅ Vault initialized and unsealed successfully"
-echo ""
+print_success "Vault unsealing completed!"
+print_warning "Important: Save the vault_init_output.txt file securely!"
 
-# Wait for system to stabilize
-sleep 10
+# =============================================================================
+# STEP 6: GCP Secrets Engine Configuration
+# =============================================================================
+print_step "6. GCP Secrets Engine Configuration"
 
-# =========================================================
-# Step 6: Enable GCP Secrets Engine
-# =========================================================
-echo "Step 6: Enabling GCP secrets engine..."
-
-# Enable GCP secrets engine
+print_status "Enabling GCP secrets engine..."
 vault secrets enable gcp
 
-echo "✅ GCP secrets engine enabled"
-echo ""
-
-# =========================================================
-# Step 7: Setup GCP Service Account
-# =========================================================
-echo "Step 7: Setting up GCP service account..."
-
-# Define service account email
+print_status "Creating service account key..."
 SERVICE_ACCOUNT_EMAIL="$DEVSHELL_PROJECT_ID@$DEVSHELL_PROJECT_ID.iam.gserviceaccount.com"
 
-# Create service account key
 gcloud iam service-accounts keys create ~/$DEVSHELL_PROJECT_ID.json \
   --iam-account $SERVICE_ACCOUNT_EMAIL
 
-# List service account keys for verification
+print_status "Listing service account keys..."
 gcloud iam service-accounts keys list --iam-account $SERVICE_ACCOUNT_EMAIL
 
-echo "✅ Service account key created: ~/$DEVSHELL_PROJECT_ID.json"
-echo ""
-
-# =========================================================
-# Step 8: Configure Vault GCP Integration
-# =========================================================
-echo "Step 8: Configuring Vault GCP integration..."
-
-# Ensure Vault address is set
-export VAULT_ADDR='http://127.0.0.1:8200'
-
-# Configure GCP credentials in Vault
+print_status "Configuring GCP secrets engine in Vault..."
 vault write gcp/config \
   credentials=@/home/$USER/$DEVSHELL_PROJECT_ID.json \
   ttl=3600 \
   max_ttl=86400
 
-echo "✅ GCP credentials configured in Vault"
-echo ""
+print_success "GCP secrets engine configuration completed!"
 
-# =========================================================
-# Step 9: Create Resource Bindings
-# =========================================================
-echo "Step 9: Creating resource bindings..."
+# =============================================================================
+# STEP 7: Creating IAM Bindings and Rolesets
+# =============================================================================
+print_step "7. Creating IAM Bindings and Rolesets"
 
-# Create bindings configuration for Cloud Storage
+print_status "Creating IAM bindings configuration..."
 cat > bindings.hcl <<EOF_CP
 resource "buckets/$DEVSHELL_PROJECT_ID" {
   roles = [
@@ -188,131 +182,85 @@ resource "buckets/$DEVSHELL_PROJECT_ID" {
 }
 EOF_CP
 
-echo "✅ Resource bindings configuration created"
-echo ""
-
-# =========================================================
-# Step 10: Setup Dynamic Access Token Roleset
-# =========================================================
-echo "Step 10: Setting up dynamic access token roleset..."
-
-# Create roleset for access tokens
+print_status "Creating token-based roleset..."
 vault write gcp/roleset/my-token-roleset \
-  project="$DEVSHELL_PROJECT_ID" \
-  secret_type="access_token" \
-  token_scopes="https://www.googleapis.com/auth/cloud-platform" \
-  bindings=@bindings.hcl
+    project="$DEVSHELL_PROJECT_ID" \
+    secret_type="access_token" \
+    token_scopes="https://www.googleapis.com/auth/cloud-platform" \
+    bindings=@bindings.hcl
 
-echo "✅ Access token roleset created"
-echo ""
+print_status "Creating service account key roleset..."
+vault write gcp/roleset/my-key-roleset \
+    project="$DEVSHELL_PROJECT_ID" \
+    secret_type="service_account_key" \
+    bindings=@bindings.hcl
 
-# =========================================================
-# Step 11: Test Access Token Generation
-# =========================================================
-echo "Step 11: Testing access token generation..."
+print_success "Rolesets creation completed!"
 
-# Generate access token
+# =============================================================================
+# STEP 8: Testing Token-based Access
+# =============================================================================
+print_step "8. Testing Token-based Access"
+
+print_status "Generating access token..."
 TOKEN=$(vault read -field=token gcp/roleset/my-token-roleset/token)
 
-echo "Generated access token: ${TOKEN:0:20}..."
-
-# Test API call with generated token
-echo "Testing Cloud Storage API access..."
+print_status "Testing bucket access with generated token..."
 curl "https://storage.googleapis.com/storage/v1/b/$DEVSHELL_PROJECT_ID" \
   --header "Authorization: Bearer $TOKEN" \
   --header "Accept: application/json"
 
-echo ""
-echo "✅ Access token test successful"
-echo ""
-
-# =========================================================
-# Step 12: Test File Download
-# =========================================================
-echo "Step 12: Testing file download..."
-
-# Download sample file using generated token
+print_status "Testing file download with generated token..."
 curl -X GET \
   -H "Authorization: Bearer $TOKEN" \
   -o "sample.txt" \
   "https://storage.googleapis.com/storage/v1/b/$DEVSHELL_PROJECT_ID/o/sample.txt?alt=media"
 
-if [ -f "sample.txt" ]; then
-  echo "✅ File downloaded successfully"
-else
-  echo "⚠️  File download may have failed (this is normal if file doesn't exist)"
-fi
-echo ""
+print_success "Token-based access testing completed!"
 
-# =========================================================
-# Step 13: Setup Service Account Key Roleset
-# =========================================================
-echo "Step 13: Setting up service account key roleset..."
+# =============================================================================
+# STEP 9: Static Account Configuration
+# =============================================================================
+print_step "9. Static Account Configuration"
 
-# Create roleset for service account keys
-vault write gcp/roleset/my-key-roleset \
-  project="$DEVSHELL_PROJECT_ID" \
-  secret_type="service_account_key" \
-  bindings=@bindings.hcl
+print_status "Creating static account for access tokens..."
+vault write gcp/static-account/my-token-account \
+    service_account_email="$SERVICE_ACCOUNT_EMAIL" \
+    secret_type="access_token" \
+    token_scopes="https://www.googleapis.com/auth/cloud-platform" \
+    bindings=@bindings.hcl
 
-# Test service account key generation
-echo "Testing service account key generation..."
+print_status "Creating static account for service account keys..."
+vault write gcp/static-account/my-key-account \
+    service_account_email="$SERVICE_ACCOUNT_EMAIL" \
+    secret_type="service_account_key" \
+    bindings=@bindings.hcl
+
+print_success "Static account configuration completed!"
+
+# =============================================================================
+# STEP 10: Final Verification and Summary
+# =============================================================================
+print_step "10. Final Verification and Summary"
+
+print_status "Reading service account key from roleset..."
 vault read gcp/roleset/my-key-roleset/key
 
-echo "✅ Service account key roleset created and tested"
-echo ""
+print_success "Setup completed successfully!"
 
-# =========================================================
-# Step 14: Setup Static Accounts
-# =========================================================
-echo "Step 14: Setting up static accounts..."
+echo -e "\n${GREEN}================================================${NC}"
+echo -e "${WHITE}           SETUP COMPLETION SUMMARY${NC}"
+echo -e "${GREEN}================================================${NC}"
+echo -e "${CYAN}✓ Vault Server Status:${NC} Running on http://127.0.0.1:8200"
+echo -e "${CYAN}✓ GCP Integration:${NC} Configured and tested"
+echo -e "${CYAN}✓ Rolesets Created:${NC} my-token-roleset, my-key-roleset"
+echo -e "${CYAN}✓ Static Accounts:${NC} my-token-account, my-key-account"
+echo -e "${CYAN}✓ Project ID:${NC} $PROJECT_ID"
+echo -e "${GREEN}================================================${NC}"
 
-# Create static account for access tokens
-vault write gcp/static-account/my-token-account \
-  service_account_email="$SERVICE_ACCOUNT_EMAIL" \
-  secret_type="access_token" \
-  token_scopes="https://www.googleapis.com/auth/cloud-platform" \
-  bindings=@bindings.hcl
+print_warning "Remember to:"
+echo -e "${YELLOW}  • Keep vault_init_output.txt secure${NC}"
+echo -e "${YELLOW}  • Monitor vault_server.log for any issues${NC}"
+echo -e "${YELLOW}  • Access Vault UI at http://127.0.0.1:8200${NC}"
 
-# Create static account for service account keys
-vault write gcp/static-account/my-key-account \
-  service_account_email="$SERVICE_ACCOUNT_EMAIL" \
-  secret_type="service_account_key" \
-  bindings=@bindings.hcl
-
-echo "✅ Static accounts configured"
-echo ""
-
-# =========================================================
-# Step 15: Re-verify Configuration
-# =========================================================
-echo "Step 15: Re-verifying configuration..."
-
-# Ensure environment is properly set
-export VAULT_ADDR='http://127.0.0.1:8200'
-
-# Re-configure GCP credentials (duplicate for verification)
-vault write gcp/config \
-  credentials=@/home/$USER/$DEVSHELL_PROJECT_ID.json \
-  ttl=3600 \
-  max_ttl=86400
-
-# Recreate bindings (duplicate for verification)
-cat > bindings.hcl <<EOF_CP
-resource "buckets/$DEVSHELL_PROJECT_ID" {
-  roles = [
-    "roles/storage.objectAdmin",
-    "roles/storage.legacyBucketReader",
-  ]
-}
-EOF_CP
-
-# Re-create token roleset (duplicate for verification)
-vault write gcp/roleset/my-token-roleset \
-  project="$DEVSHELL_PROJECT_ID" \
-  secret_type="access_token" \
-  token_scopes="https://www.googleapis.com/auth/cloud-platform" \
-  bindings=@bindings.hcl
-
-echo "✅ Configuration verification complete"
-echo "✅ ALL PROGRESS COMPLETE"
+print_success "All steps completed successfully! 🎉"
