@@ -7,8 +7,8 @@
 ### Run the following Commands in CloudShell 
 
 ```
-curl -LO raw.githubusercontent.com/andregregs/gcaf/refs/heads/main/Agustus/Level%201/Creating%20Dynamic%20Secrets%20for%20Google%20Cloud%20with%20Vault/GSP1007.sh
-sudo chmod +x GSP1007.sh
+curl -LO raw.githubusercontent.com/andregregs/gcaf/refs/heads/main/Agustus/Level%201/Managing%20Vault%20Tokens/GSP1006.sh
+sudo chmod +x GSP1006.sh
 
-./GSP1007.sh
+./GSP1006.sh
 ```
