@@ -1,4 +1,4 @@
-#  Using Prometheus for Monitoring on Google Cloud: Qwik Start
+#  Dataproc: Qwik Start - Command Line
 
 
 #### ⚠️ Disclaimer :
@@ -7,8 +7,8 @@
 ### Run the following Commands in CloudShell 
 
 ```
-curl -LO raw.githubusercontent.com/andregregs/gcaf/refs/heads/main/Agustus/Level%202/Using%20Prometheus%20for%20Monitoring%20on%20Google%20Cloud%20Qwik%20Start/GSP1024.sh
-sudo chmod +x GSP1024.sh
+curl -LO raw.githubusercontent.com/andregregs/gcaf/refs/heads/main/Agustus/Level%202/Dataproc%20Qwik%20Start%20-%20Command%20Line/GSP104.sh
+sudo chmod +x GSP104.sh
 
-./GSP1024.sh
+./GSP104.sh
 ```
