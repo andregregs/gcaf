@@ -45,12 +45,21 @@ print_task() {
 # Get project information
 print_status "Getting project and environment information..."
 export PROJECT_ID=$(gcloud config get-value project)
-export REGION=$(gcloud config get-value compute/region)
-export ZONE=$(gcloud config get-value compute/zone)
 
-# If zone is not set, use a default
-if [ -z "$ZONE" ]; then
-    export ZONE="${REGION}-a"
+# Get region and zone, set defaults if not configured
+export REGION=$(gcloud config get-value compute/region 2>/dev/null)
+export ZONE=$(gcloud config get-value compute/zone 2>/dev/null)
+
+# Set default region and zone if not configured
+if [ -z "$REGION" ] || [ "$REGION" = "(unset)" ]; then
+    print_warning "Region not set, using default: us-central1"
+    export REGION="us-central1"
+    gcloud config set compute/region $REGION
+fi
+
+if [ -z "$ZONE" ] || [ "$ZONE" = "(unset)" ]; then
+    print_warning "Zone not set, using default: us-central1-a"
+    export ZONE="us-central1-a"
     gcloud config set compute/zone $ZONE
 fi
 
@@ -65,11 +74,13 @@ print_task "1. Create a Docker Repository"
 
 print_step "Step 1.1: Create Docker Repository in Artifact Registry"
 print_status "Creating Docker repository named 'docker-repo'..."
+print_status "Using region: $REGION and project: $PROJECT_ID"
+
 gcloud artifacts repositories create docker-repo \
     --repository-format=docker \
     --location=$REGION \
-    --description="Docker repository" \
-    --project=$PROJECT_ID
+    --description="Docker repository"
+
 print_success "Docker repository created successfully!"
 
 print_step "Step 1.2: Download and Load Flask Telemetry Image"
