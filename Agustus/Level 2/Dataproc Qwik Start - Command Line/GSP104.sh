@@ -73,12 +73,40 @@ echo -e "${CYAN}Zone: ${WHITE}$ZONE${NC}"
 # =============================================================================
 print_task "1. Create a Cluster"
 
-print_step "Step 1.1: Set Dataproc Region"
+print_step "Step 1.1: Enable Required APIs"
+print_status "Enabling Dataproc and Compute Engine APIs..."
+gcloud services enable dataproc.googleapis.com
+gcloud services enable compute.googleapis.com
+print_success "Required APIs enabled!"
+
+print_step "Step 1.2: Grant Required IAM Roles"
+print_status "Adding necessary IAM roles for the current user..."
+CURRENT_USER=$(gcloud config get-value account)
+echo -e "${CYAN}Current User: ${WHITE}$CURRENT_USER${NC}"
+
+# Add Dataproc Editor role
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+    --member="user:$CURRENT_USER" \
+    --role="roles/dataproc.editor"
+
+# Add Compute Admin role  
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+    --member="user:$CURRENT_USER" \
+    --role="roles/compute.admin"
+
+# Add Service Account User role
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+    --member="user:$CURRENT_USER" \
+    --role="roles/iam.serviceAccountUser"
+
+print_success "IAM roles configured!"
+
+print_step "Step 1.3: Set Dataproc Region"
 print_status "Setting Dataproc region to: $REGION"
 gcloud config set dataproc/region $REGION
 print_success "Dataproc region configured!"
 
-print_step "Step 1.2: Get Project Information"
+print_step "Step 1.4: Get Project Information"
 print_status "Retrieving project ID and project number..."
 PROJECT_ID=$(gcloud config get-value project) && \
 gcloud config set project $PROJECT_ID
@@ -89,36 +117,43 @@ echo -e "${CYAN}Project ID: ${WHITE}$PROJECT_ID${NC}"
 echo -e "${CYAN}Project Number: ${WHITE}$PROJECT_NUMBER${NC}"
 print_success "Project information retrieved!"
 
-print_step "Step 1.3: Configure Service Account Permissions"
+print_step "Step 1.5: Configure Service Account Permissions"
 print_status "Adding Storage Admin role to Compute Engine default service account..."
 gcloud projects add-iam-policy-binding $PROJECT_ID \
   --member=serviceAccount:$PROJECT_NUMBER-compute@developer.gserviceaccount.com \
   --role=roles/storage.admin
 print_success "Service account permissions configured!"
 
-print_step "Step 1.4: Enable Private Google Access"
+print_step "Step 1.6: Enable Private Google Access"
 print_status "Enabling Private Google Access on default subnetwork..."
 gcloud compute networks subnets update default \
   --region=$REGION \
   --enable-private-ip-google-access
 print_success "Private Google Access enabled!"
 
-print_step "Step 1.5: Create Dataproc Cluster"
+print_step "Step 1.7: Create Dataproc Cluster"
 print_status "Creating Dataproc cluster 'example-cluster'..."
 print_warning "This may take several minutes to complete..."
 
-gcloud dataproc clusters create example-cluster \
+if gcloud dataproc clusters create example-cluster \
   --worker-boot-disk-size 500 \
   --worker-machine-type=e2-standard-4 \
   --master-machine-type=e2-standard-4 \
-  --zone=$ZONE
+  --zone=$ZONE; then
+    print_success "Dataproc cluster created successfully!"
+else
+    print_error "Failed to create Dataproc cluster"
+    exit 1
+fi
 
-print_success "Dataproc cluster created successfully!"
-
-print_step "Step 1.6: Verify Cluster Status"
+print_step "Step 1.8: Verify Cluster Status"
 print_status "Checking cluster status..."
-gcloud dataproc clusters describe example-cluster --region=$REGION --format="value(status.state)"
-print_success "Cluster verification completed!"
+if CLUSTER_STATE=$(gcloud dataproc clusters describe example-cluster --region=$REGION --format="value(status.state)" 2>/dev/null); then
+    echo -e "${CYAN}Cluster State: ${WHITE}$CLUSTER_STATE${NC}"
+    print_success "Cluster verification completed!"
+else
+    print_warning "Could not verify cluster status, but continuing..."
+fi
 
 echo -e "\n${GREEN}✓ TASK 1 COMPLETED: Dataproc cluster 'example-cluster' is ready!${NC}"
 
@@ -131,14 +166,17 @@ print_step "Step 2.1: Submit Spark Pi Calculation Job"
 print_status "Submitting Spark job to calculate pi value..."
 print_status "Job parameters: 1000 tasks for pi calculation"
 
-gcloud dataproc jobs submit spark \
+if gcloud dataproc jobs submit spark \
   --cluster example-cluster \
   --region=$REGION \
   --class org.apache.spark.examples.SparkPi \
   --jars file:///usr/lib/spark/examples/jars/spark-examples.jar \
-  -- 1000
-
-print_success "Spark job submitted and completed successfully!"
+  -- 1000; then
+    print_success "Spark job submitted and completed successfully!"
+else
+    print_error "Failed to submit Spark job"
+    exit 1
+fi
 
 print_step "Step 2.2: Job Execution Summary"
 echo -e "${CYAN}Job Details:${NC}"
@@ -150,7 +188,11 @@ echo -e "${WHITE}• Expected Output: Pi is roughly 3.14...${NC}"
 
 print_step "Step 2.3: List Recent Jobs"
 print_status "Displaying recent Dataproc jobs..."
-gcloud dataproc jobs list --region=$REGION --limit=5
+if gcloud dataproc jobs list --region=$REGION --limit=5 2>/dev/null; then
+    print_success "Job listing completed!"
+else
+    print_warning "Could not list jobs, but job submission was successful"
+fi
 
 echo -e "\n${GREEN}✓ TASK 2 COMPLETED: Spark job executed successfully!${NC}"
 
