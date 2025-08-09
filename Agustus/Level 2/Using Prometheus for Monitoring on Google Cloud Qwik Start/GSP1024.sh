@@ -46,21 +46,22 @@ print_task() {
 print_status "Getting project and environment information..."
 export PROJECT_ID=$(gcloud config get-value project)
 
-# Get region and zone, set defaults if not configured
-export REGION=$(gcloud config get-value compute/region 2>/dev/null)
-export ZONE=$(gcloud config get-value compute/zone 2>/dev/null)
+# Get region and zone from project metadata
+print_status "Retrieving zone and region from project metadata..."
+export ZONE=$(gcloud compute project-info describe \
+    --format="value(commonInstanceMetadata.items[google-compute-default-zone])")
+export REGION=$(gcloud compute project-info describe \
+    --format="value(commonInstanceMetadata.items[google-compute-default-region])")
 
-# Set default region and zone if not configured
+# Set default region and zone if not found in metadata
 if [ -z "$REGION" ] || [ "$REGION" = "(unset)" ]; then
-    print_warning "Region not set, using default: us-central1"
+    print_warning "Region not found in metadata, using default: us-central1"
     export REGION="us-central1"
-    gcloud config set compute/region $REGION
 fi
 
 if [ -z "$ZONE" ] || [ "$ZONE" = "(unset)" ]; then
-    print_warning "Zone not set, using default: us-central1-a"
+    print_warning "Zone not found in metadata, using default: us-central1-a"
     export ZONE="us-central1-a"
-    gcloud config set compute/zone $ZONE
 fi
 
 echo -e "${CYAN}Project ID: ${WHITE}$PROJECT_ID${NC}"
