@@ -46,27 +46,7 @@ print_task() {
 print_status "Getting project and environment information..."
 export PROJECT_ID=$(gcloud config get-value project)
 
-# Get region and zone from project metadata
-print_status "Retrieving zone and region from project metadata..."
-export ZONE=$(gcloud compute project-info describe \
-    --format="value(commonInstanceMetadata.items[google-compute-default-zone])")
-export REGION=$(gcloud compute project-info describe \
-    --format="value(commonInstanceMetadata.items[google-compute-default-region])")
-
-# Set default region and zone if not found in metadata
-if [ -z "$REGION" ] || [ "$REGION" = "(unset)" ]; then
-    print_warning "Region not found in metadata, using default: us-central1"
-    export REGION="us-central1"
-fi
-
-if [ -z "$ZONE" ] || [ "$ZONE" = "(unset)" ]; then
-    print_warning "Zone not found in metadata, using default: us-central1-a"
-    export ZONE="us-central1-a"
-fi
-
 echo -e "${CYAN}Project ID: ${WHITE}$PROJECT_ID${NC}"
-echo -e "${CYAN}Region: ${WHITE}$REGION${NC}"
-echo -e "${CYAN}Zone: ${WHITE}$ZONE${NC}"
 
 # =============================================================================
 # TASK 1: ENABLE REQUIRED SERVICES
@@ -103,8 +83,9 @@ echo -e "\n${GREEN}✓ TASK 1 COMPLETED: Required services enabled!${NC}"
 print_task "2. Create a Bucket with Public Access"
 
 print_step "Step 2.1: Create Cloud Storage Bucket"
-export BUCKET_NAME="${PROJECT_ID}_0"
+export BUCKET_NAME="$PROJECT_ID"
 print_status "Creating bucket with name: $BUCKET_NAME"
+print_status "Using default settings (no region specified - will use default)"
 
 gsutil mb gs://$BUCKET_NAME
 print_success "Bucket created successfully!"
