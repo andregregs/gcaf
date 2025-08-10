@@ -1,4 +1,4 @@
-#  Validating Policies for Terraform on Google Cloud
+#  SAP Landing Zone: Plan and Deploy the SAP Network
 
 
 #### ⚠️ Disclaimer :
@@ -7,8 +7,8 @@
 ### Run the following Commands in CloudShell 
 
 ```
-curl -LO raw.githubusercontent.com/andregregs/gcaf/refs/heads/main/Agustus/Level%202/Validating%20Policies%20for%20Terraform%20on%20Google%20Cloud/GSP1021.sh
-sudo chmod +x GSP1021.sh
+curl -LO raw.githubusercontent.com/andregregs/gcaf/refs/heads/main/Agustus/Level%202/SAP%20Landing%20Zone%20Plan%20and%20Deploy%20the%20SAP%20Network/GSP1068.sh
+sudo chmod +x GSP1068.sh
 
-./GSP1021.sh
+./GSP1068.sh
 ```
