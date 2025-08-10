@@ -124,7 +124,7 @@ print_task "3. Create an Origin"
 
 print_step "Step 3.1: Create Backend Bucket"
 print_status "Creating backend bucket for CDN origin..."
-gcloud compute backend-buckets create cloud-storage-backend \
+gcloud compute backend-buckets create cloud-storage-origin \
     --gcs-bucket-name=$BUCKET_NAME \
     --description="Backend bucket for Cloud Storage origin"
 print_success "Backend bucket created successfully!"
@@ -132,7 +132,7 @@ print_success "Backend bucket created successfully!"
 print_step "Step 3.2: Create URL Map"
 print_status "Creating URL map for load balancer..."
 gcloud compute url-maps create cloud-storage-origin-load-balancer \
-    --default-backend-bucket=cloud-storage-backend \
+    --default-backend-bucket=cloud-storage-origin \
     --description="URL map for Cloud Storage CDN origin"
 print_success "URL map created successfully!"
 
@@ -165,7 +165,7 @@ print_success "Global forwarding rule created successfully!"
 
 print_step "Step 3.6: Enable Cloud CDN"
 print_status "Enabling Cloud CDN on the backend bucket..."
-gcloud compute backend-buckets update cloud-storage-backend \
+gcloud compute backend-buckets update cloud-storage-origin \
     --enable-cdn \
     --cache-mode=CACHE_ALL_STATIC \
     --default-ttl=3600 \
