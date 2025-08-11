@@ -7,8 +7,8 @@
 ### Run the following Commands in CloudShell 
 
 ```
-curl -LO raw.githubusercontent.com/andregregs/gcaf/refs/heads/main/Agustus/Level%202/Dataproc%20Qwik%20Start%20-%20Command%20Line/GSP104.sh
-sudo chmod +x GSP104.sh
+curl -LO raw.githubusercontent.com/andregregs/gcaf/refs/heads/main/Agustus/Future%20Ready%20Skills/APIs%20Explorer%20Cloud%20SQL/GSP423.sh
+sudo chmod +x GSP423.sh
 
-./GSP104.sh
+./GSP423.sh
 ```
