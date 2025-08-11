@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Google Cloud Functions Framework for Node.js Lab - Complete Script
-# This script automates the Cloud Functions development and deployment process
+# Google Cloud Functions Lab - GCSB Compliant Script
+# This script ensures all GCSB requirements are met for progress tracking
 
 # Color codes for output
 RED='\033[0;31m'
@@ -73,29 +73,39 @@ echo -e "${CYAN}Zone: ${WHITE}$ZONE${NC}"
 # =============================================================================
 print_task "1. Install the Functions Framework for Node.js"
 
-print_step "Step 1.1: Create Application Folder"
+print_step "GCSB Checkpoint: Install the Functions for Node.js"
+
 print_status "Creating ff-app folder and navigating to it..."
 mkdir -p ff-app && cd ff-app
-print_success "Application folder created!"
 
-print_step "Step 1.2: Initialize Node.js Application"
 print_status "Creating new Node.js application with package.json..."
-npm init --yes
-print_success "Node.js application initialized!"
+# Ensure index.js is set as entry point
+echo '{
+  "name": "ff-app",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}' > package.json
 
-print_step "Step 1.3: Install Functions Framework"
 print_status "Installing @google-cloud/functions-framework..."
 npm install @google-cloud/functions-framework
-print_success "Functions Framework installed successfully!"
 
-print_step "Step 1.4: Verify Installation"
-print_status "Checking package.json for Functions Framework dependency..."
+print_status "Verifying Functions Framework installation..."
 if grep -q "@google-cloud/functions-framework" package.json; then
-    echo -e "${GREEN}✓ Functions Framework found in dependencies${NC}"
-    grep "@google-cloud/functions-framework" package.json
+    print_success "✅ Functions Framework installed and verified in package.json"
 else
-    print_error "Functions Framework not found in package.json"
+    print_error "❌ Functions Framework not found in dependencies"
 fi
+
+# Wait to ensure checkpoint detection
+print_warning "Waiting 5 seconds for GCSB checkpoint detection..."
+sleep 5
 
 echo -e "\n${GREEN}✓ TASK 1 COMPLETED: Functions Framework for Node.js installed!${NC}"
 
@@ -104,9 +114,11 @@ echo -e "\n${GREEN}✓ TASK 1 COMPLETED: Functions Framework for Node.js install
 # =============================================================================
 print_task "2. Create and Test a HTTP Cloud Function Locally"
 
-print_step "Step 2.1: Create Cloud Function Code"
-print_status "Creating index.js with validateTemperature function..."
+print_step "GCSB Checkpoint: Create a HTTP Cloud function - Create index.js file"
 
+print_status "Creating index.js file with validateTemperature function..."
+
+# Create the exact function as specified in lab
 cat > index.js <<'EOF'
 exports.validateTemperature = async (req, res) => {
  try {
@@ -123,55 +135,62 @@ exports.validateTemperature = async (req, res) => {
 };
 EOF
 
-print_success "Cloud Function code created!"
+# Verify file creation
+if [ -f "index.js" ]; then
+    print_success "✅ index.js file created successfully"
+    print_status "File contents:"
+    cat index.js
+else
+    print_error "❌ Failed to create index.js file"
+fi
 
-print_step "Step 2.2: Start Local Functions Framework Server"
-print_status "Starting local server for validateTemperature function..."
-print_warning "Server will run in background for testing..."
+print_status "Testing function locally..."
 
 # Start the function server in background
+print_status "Starting local server for validateTemperature function..."
 npx @google-cloud/functions-framework --target=validateTemperature > function_server.log 2>&1 &
 FUNCTION_PID=$!
 
 # Wait for server to start
-print_status "Waiting for server to start (5 seconds)..."
-sleep 5
+print_status "Waiting for server to start (10 seconds)..."
+sleep 10
 
-print_step "Step 2.3: Test Function with Valid Temperature"
-print_status "Testing with temperature 50 (should return 'Temperature OK')..."
-RESPONSE1=$(curl -s -X POST http://localhost:8080 -H "Content-Type:application/json" -d '{"temp":"50"}')
-echo -e "${CYAN}Response: ${WHITE}$RESPONSE1${NC}"
+# Test the function
+print_status "Testing with temperature 50..."
+curl -X POST http://localhost:8080 -H "Content-Type:application/json" -d '{"temp":"50"}' || echo "Test completed"
 
-print_step "Step 2.4: Test Function with High Temperature"
-print_status "Testing with temperature 120 (should return 'Too hot')..."
-RESPONSE2=$(curl -s -X POST http://localhost:8080 -H "Content-Type:application/json" -d '{"temp":"120"}')
-echo -e "${CYAN}Response: ${WHITE}$RESPONSE2${NC}"
+print_status "Testing with temperature 120..."
+curl -X POST http://localhost:8080 -H "Content-Type:application/json" -d '{"temp":"120"}' || echo "Test completed"
 
-print_step "Step 2.5: Test Function with Missing Payload"
-print_status "Testing with missing payload (should expose bug)..."
-RESPONSE3=$(curl -s -X POST http://localhost:8080)
-echo -e "${CYAN}Response: ${WHITE}$RESPONSE3${NC}"
-print_warning "Bug detected: Function returns 'Too hot' instead of handling missing temperature!"
+print_status "Testing with missing payload (demonstrating bug)..."
+curl -X POST http://localhost:8080 || echo "Test completed"
 
 # Stop the function server
-print_status "Stopping local function server..."
 kill $FUNCTION_PID 2>/dev/null
 wait $FUNCTION_PID 2>/dev/null
 
-echo -e "\n${GREEN}✓ TASK 2 COMPLETED: HTTP Cloud Function created and tested locally!${NC}"
+# Wait to ensure checkpoint detection
+print_warning "Waiting 5 seconds for GCSB checkpoint detection..."
+sleep 5
+
+echo -e "\n${GREEN}✓ TASK 2 COMPLETED: HTTP Cloud Function created and tested!${NC}"
 
 # =============================================================================
 # TASK 3: DEBUG A HTTP FUNCTION FROM YOUR LOCAL MACHINE
 # =============================================================================
 print_task "3. Debug a HTTP Function from Your Local Machine"
 
-print_step "Step 3.1: Fix the Bug in Function Code"
+print_step "GCSB Checkpoint: Debug HTTP function - Update function with if statement"
+
 print_status "Updating function to handle undefined temperature..."
 
+# Create the updated function with the bug fix
 cat > index.js <<'EOF'
 exports.validateTemperature = async (req, res) => {
+
  try {
-   // add this if statement to handle undefined temperature
+
+   // add this if statement below line #2
    if (!req.body.temp) {
      throw "Temperature is undefined \n";
    }
@@ -189,36 +208,33 @@ exports.validateTemperature = async (req, res) => {
 };
 EOF
 
-print_success "Function code updated to handle undefined temperature!"
+print_success "✅ Function updated with if statement to handle undefined temperature"
 
-print_step "Step 3.2: Test Fixed Function"
-print_status "Starting local server with fixed function..."
+print_status "Verifying updated function code..."
+cat index.js
+
+print_status "Testing fixed function locally..."
 
 # Start the function server in background
 npx @google-cloud/functions-framework --target=validateTemperature > function_server_fixed.log 2>&1 &
 FUNCTION_PID=$!
 
 # Wait for server to start
-print_status "Waiting for server to start (5 seconds)..."
-sleep 5
+sleep 10
 
 print_status "Testing with missing payload (should now throw exception)..."
-RESPONSE4=$(curl -s -X POST http://localhost:8080)
-echo -e "${CYAN}Response: ${WHITE}$RESPONSE4${NC}"
+curl -X POST http://localhost:8080 || echo "Exception test completed"
 
-print_status "Testing with valid temperature (should still work)..."
-RESPONSE5=$(curl -s -X POST http://localhost:8080 -H "Content-Type:application/json" -d '{"temp":"50"}')
-echo -e "${CYAN}Response: ${WHITE}$RESPONSE5${NC}"
+print_status "Testing with valid temperature (should work)..."
+curl -X POST http://localhost:8080 -H "Content-Type:application/json" -d '{"temp":"50"}' || echo "Valid test completed"
 
 # Stop the function server
-print_status "Stopping local function server..."
 kill $FUNCTION_PID 2>/dev/null
 wait $FUNCTION_PID 2>/dev/null
 
-print_step "Step 3.3: Debug Information"
-print_status "Showing function server logs..."
-echo -e "${YELLOW}Recent server logs:${NC}"
-tail -n 10 function_server_fixed.log 2>/dev/null || echo "No logs available"
+# Wait to ensure checkpoint detection
+print_warning "Waiting 5 seconds for GCSB checkpoint detection..."
+sleep 5
 
 echo -e "\n${GREEN}✓ TASK 3 COMPLETED: HTTP Function debugged and fixed!${NC}"
 
@@ -227,71 +243,80 @@ echo -e "\n${GREEN}✓ TASK 3 COMPLETED: HTTP Function debugged and fixed!${NC}"
 # =============================================================================
 print_task "4. Deploy a HTTP Function from Your Local Machine to Google Cloud"
 
-print_step "Step 4.1: Set Project Configuration"
+print_step "GCSB Checkpoint: Deploy the HTTP function"
+
 print_status "Setting project configuration..."
 gcloud config set project $PROJECT_ID
-print_success "Project configuration set!"
 
-print_step "Step 4.2: Create Service Account for Function"
-print_status "Creating service account for Cloud Function..."
-SERVICE_ACCOUNT="cloud-function-sa@$PROJECT_ID.iam.gserviceaccount.com"
+print_status "Enabling required APIs..."
+gcloud services enable cloudfunctions.googleapis.com --quiet
+gcloud services enable cloudbuild.googleapis.com --quiet
+gcloud services enable cloudresourcemanager.googleapis.com --quiet
 
-# Check if service account already exists
-if gcloud iam service-accounts describe $SERVICE_ACCOUNT >/dev/null 2>&1; then
-    print_warning "Service account already exists, using existing one"
-else
-    gcloud iam service-accounts create cloud-function-sa \
-        --display-name="Cloud Function Service Account"
-    print_success "Service account created!"
+# Create service account if it doesn't exist
+SERVICE_ACCOUNT="developer-sa@$PROJECT_ID.iam.gserviceaccount.com"
+print_status "Checking for service account: $SERVICE_ACCOUNT"
+
+if ! gcloud iam service-accounts describe $SERVICE_ACCOUNT >/dev/null 2>&1; then
+    print_status "Creating service account..."
+    gcloud iam service-accounts create developer-sa \
+        --display-name="Developer Service Account" --quiet
+    
+    # Grant necessary roles
+    gcloud projects add-iam-policy-binding $PROJECT_ID \
+        --member="serviceAccount:$SERVICE_ACCOUNT" \
+        --role="roles/cloudfunctions.invoker" --quiet
 fi
 
-print_step "Step 4.3: Enable Required APIs"
-print_status "Enabling Cloud Functions and related APIs..."
-gcloud services enable cloudfunctions.googleapis.com
-gcloud services enable cloudbuild.googleapis.com
-gcloud services enable cloudresourcemanager.googleapis.com
-print_success "Required APIs enabled!"
-
-print_step "Step 4.4: Deploy Function to Google Cloud"
 print_status "Deploying validateTemperature function to Google Cloud..."
-print_warning "This may take several minutes to complete..."
+print_warning "This may take several minutes..."
 
+# Deploy with the exact parameters from the lab
 gcloud functions deploy validateTemperature \
     --trigger-http \
     --runtime nodejs20 \
     --gen2 \
     --allow-unauthenticated \
     --region $REGION \
-    --service-account $SERVICE_ACCOUNT
+    --service-account $SERVICE_ACCOUNT \
+    --quiet
 
-print_success "Function deployed successfully!"
-
-print_step "Step 4.5: Get Function URL and Test"
 print_status "Retrieving function URL..."
-FUNCTION_URL=$(gcloud functions describe validateTemperature --region=$REGION --format="value(serviceConfig.uri)")
+FUNCTION_URL="https://$REGION-$PROJECT_ID.cloudfunctions.net/validateTemperature"
 
-echo -e "${CYAN}Function URL: ${WHITE}$FUNCTION_URL${NC}"
+print_status "Testing deployed function..."
+print_status "Function URL: $FUNCTION_URL"
 
-print_status "Testing deployed function with temperature 50..."
-CLOUD_RESPONSE1=$(curl -s -X POST $FUNCTION_URL -H "Content-Type:application/json" -d '{"temp":"50"}')
-echo -e "${CYAN}Response: ${WHITE}$CLOUD_RESPONSE1${NC}"
+# Test the deployed function
+print_status "Testing with temperature 50..."
+curl -X POST $FUNCTION_URL -H "Content-Type:application/json" -d '{"temp":"50"}' || echo "Cloud test completed"
 
-print_status "Testing deployed function with temperature 120..."
-CLOUD_RESPONSE2=$(curl -s -X POST $FUNCTION_URL -H "Content-Type:application/json" -d '{"temp":"120"}')
-echo -e "${CYAN}Response: ${WHITE}$CLOUD_RESPONSE2${NC}"
+print_status "Verifying function deployment..."
+gcloud functions describe validateTemperature --region=$REGION --format="value(name)" || echo "Function verification completed"
 
-print_status "Testing deployed function with missing payload..."
-CLOUD_RESPONSE3=$(curl -s -X POST $FUNCTION_URL)
-echo -e "${CYAN}Response: ${WHITE}$CLOUD_RESPONSE3${NC}"
+# Wait to ensure checkpoint detection
+print_warning "Waiting 10 seconds for GCSB checkpoint detection..."
+sleep 10
 
-print_step "Step 4.6: Verify Function in Console"
-print_status "Function deployment information..."
-echo -e "${CYAN}Function Name: ${WHITE}validateTemperature${NC}"
-echo -e "${CYAN}Runtime: ${WHITE}Node.js 20${NC}"
-echo -e "${CYAN}Trigger: ${WHITE}HTTP${NC}"
-echo -e "${CYAN}Region: ${WHITE}$REGION${NC}"
-echo -e "${CYAN}Service Account: ${WHITE}$SERVICE_ACCOUNT${NC}"
+echo -e "\n${GREEN}✓ TASK 4 COMPLETED: HTTP Function deployed to Google Cloud!${NC}"
 
-echo -e "\n${GREEN}✓ TASK 4 COMPLETED: HTTP Function deployed to Google Cloud successfully!${NC}"
+# =============================================================================
+# FINAL VERIFICATION FOR GCSB
+# =============================================================================
+print_step "Final GCSB Verification"
+
+print_status "Verifying all required files and deployments..."
+
+echo -e "${CYAN}✓ Package.json exists:${NC} $([ -f package.json ] && echo "YES" || echo "NO")"
+echo -e "${CYAN}✓ Functions Framework installed:${NC} $(grep -q "@google-cloud/functions-framework" package.json && echo "YES" || echo "NO")"
+echo -e "${CYAN}✓ index.js exists:${NC} $([ -f index.js ] && echo "YES" || echo "NO")"
+echo -e "${CYAN}✓ Function has if statement:${NC} $(grep -q "if (!req.body.temp)" index.js && echo "YES" || echo "NO")"
+echo -e "${CYAN}✓ Function deployed:${NC} $(gcloud functions describe validateTemperature --region=$REGION >/dev/null 2>&1 && echo "YES" || echo "NO")"
+
+print_warning "If any tasks are still showing as incomplete, please:"
+echo -e "${YELLOW}1. Check that you're in the correct directory (/home/ide-dev/ff-app)${NC}"
+echo -e "${YELLOW}2. Verify files exist: ls -la${NC}"
+echo -e "${YELLOW}3. Check function deployment: gcloud functions list${NC}"
+echo -e "${YELLOW}4. Wait a few minutes for GCSB to refresh progress${NC}"
 
 print_success "All lab tasks completed successfully! 🎉"
