@@ -59,7 +59,17 @@ NEO4J_PORT="7474"
 # =============================================================================
 print_task "1. Connect to Neo4j"
 
-print_step "Step 1.1: Find Neo4j VM Instance"
+print_step "Step 1.1: Set Default Region and Zone"
+print_status "Setting default region and zone..."
+export REGION="us-central1"
+export ZONE="us-central1-a"
+gcloud config set compute/region $REGION
+gcloud config set compute/zone $ZONE
+
+echo -e "${CYAN}Region: ${WHITE}$REGION${NC}"
+echo -e "${CYAN}Zone: ${WHITE}$ZONE${NC}"
+
+print_step "Step 1.2: Find Neo4j VM Instance"
 print_status "Looking for Neo4j VM instance..."
 
 # Get the external IP of Neo4j VM
@@ -76,7 +86,7 @@ echo -e "${CYAN}Neo4j VM: ${WHITE}$NEO4J_VM${NC}"
 echo -e "${CYAN}External IP: ${WHITE}$NEO4J_EXTERNAL_IP${NC}"
 echo -e "${CYAN}Neo4j URL: ${WHITE}http://$NEO4J_EXTERNAL_IP:$NEO4J_PORT${NC}"
 
-print_step "Step 1.2: Check Neo4j Service Availability"
+print_step "Step 1.3: Check Neo4j Service Availability"
 print_status "Checking if Neo4j service is ready..."
 
 for i in {1..30}; do
@@ -88,7 +98,7 @@ for i in {1..30}; do
     sleep 30
 done
 
-print_step "Step 1.3: Manual Login Required"
+print_step "Step 1.4: Manual Login Required"
 print_manual "Please open your browser and go to: http://$NEO4J_EXTERNAL_IP:$NEO4J_PORT
 Login with:
 - Connect URL: (leave default)
