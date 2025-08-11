@@ -7,8 +7,8 @@
 ### Run the following Commands in CloudShell 
 
 ```
-curl -LO raw.githubusercontent.com/andregregs/gcaf/refs/heads/main/Agustus/Future%20Ready%20Skills/APIs%20Explorer%20Cloud%20SQL/GSP423.sh
-sudo chmod +x GSP423.sh
+curl -LO raw.githubusercontent.com/andregregs/gcaf/refs/heads/main/Agustus/Future%20Ready%20Skills/Importing%20Data%20to%20a%20Firestore%20Database/GSP642.sh
+sudo chmod +x GSP642.sh
 
-./GSP423.sh
+./GSP642.sh
 ```
