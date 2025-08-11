@@ -7,8 +7,8 @@
 ### Run the following Commands in CloudShell 
 
 ```
-curl -LO raw.githubusercontent.com/andregregs/gcaf/refs/heads/main/Agustus/Level%202/Validating%20Policies%20for%20Terraform%20on%20Google%20Cloud/GSP1021.sh
-sudo chmod +x GSP1021.sh
+curl -LO raw.githubusercontent.com/andregregs/gcaf/refs/heads/main/Agustus/Level%202/Getting%20Started%20with%20Neo4J%20Enterprise%20on%20Google%20Cloud/GSP1104.sh
+sudo chmod +x GSP1104.sh
 
-./GSP1021.sh
+./GSP1104.sh
 ```
