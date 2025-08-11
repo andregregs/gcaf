@@ -72,15 +72,28 @@ echo -e "${CYAN}Zone: ${WHITE}$ZONE${NC}"
 print_step "Step 1.2: Find Neo4j VM Instance"
 print_status "Looking for Neo4j VM instance..."
 
-# Get the external IP of Neo4j VM
-NEO4J_VM=$(gcloud compute instances list --filter="name~'neo4j'" --format="value(name)" | head -1)
+print_step "Step 1.2: Find Neo4j VM Instance"
+print_status "Looking for Neo4j VM instance..."
 
-if [ -z "$NEO4J_VM" ]; then
+# Get the Neo4j VM with its zone information
+NEO4J_VM_INFO=$(gcloud compute instances list --filter="name~'neo4j'" --format="value(name,zone)" | head -1)
+
+if [ -z "$NEO4J_VM_INFO" ]; then
     print_error "Neo4j VM not found! Please wait for deployment to complete."
     exit 1
 fi
 
-NEO4J_EXTERNAL_IP=$(gcloud compute instances describe $NEO4J_VM --format="value(networkInterfaces[0].accessConfigs[0].natIP)")
+# Parse the VM name and zone
+NEO4J_VM=$(echo $NEO4J_VM_INFO | cut -d' ' -f1)
+NEO4J_ZONE=$(echo $NEO4J_VM_INFO | cut -d' ' -f2)
+
+# Extract zone name from full zone path (e.g., zones/us-central1-a -> us-central1-a)
+NEO4J_ZONE=$(basename $NEO4J_ZONE)
+
+print_status "Found Neo4j VM in zone: $NEO4J_ZONE"
+
+# Get the external IP using the correct zone
+NEO4J_EXTERNAL_IP=$(gcloud compute instances describe $NEO4J_VM --zone=$NEO4J_ZONE --format="value(networkInterfaces[0].accessConfigs[0].natIP)")
 
 echo -e "${CYAN}Neo4j VM: ${WHITE}$NEO4J_VM${NC}"
 echo -e "${CYAN}External IP: ${WHITE}$NEO4J_EXTERNAL_IP${NC}"
