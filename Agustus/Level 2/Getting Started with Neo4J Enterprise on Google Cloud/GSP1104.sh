@@ -59,12 +59,13 @@ NEO4J_PORT="7474"
 # =============================================================================
 print_task "1. Connect to Neo4j"
 
-print_step "Step 1.1: Set Default Region and Zone"
-print_status "Setting default region and zone..."
-export REGION="us-central1"
-export ZONE="us-central1-a"
-gcloud config set compute/region $REGION
-gcloud config set compute/zone $ZONE
+print_step "Step 1.1: Get Region and Zone from Project Metadata"
+print_status "Retrieving zone and region from project metadata..."
+
+export ZONE=$(gcloud compute project-info describe \
+    --format="value(commonInstanceMetadata.items[google-compute-default-zone])")
+export REGION=$(gcloud compute project-info describe \
+    --format="value(commonInstanceMetadata.items[google-compute-default-region])")
 
 echo -e "${CYAN}Region: ${WHITE}$REGION${NC}"
 echo -e "${CYAN}Zone: ${WHITE}$ZONE${NC}"
@@ -72,10 +73,7 @@ echo -e "${CYAN}Zone: ${WHITE}$ZONE${NC}"
 print_step "Step 1.2: Find Neo4j VM Instance"
 print_status "Looking for Neo4j VM instance..."
 
-print_step "Step 1.2: Find Neo4j VM Instance"
-print_status "Looking for Neo4j VM instance..."
-
-# Get the Neo4j VM with its zone information
+# Get the Neo4j VM info including zone
 NEO4J_VM_INFO=$(gcloud compute instances list --filter="name~'neo4j'" --format="value(name,zone)" | head -1)
 
 if [ -z "$NEO4J_VM_INFO" ]; then
@@ -83,19 +81,15 @@ if [ -z "$NEO4J_VM_INFO" ]; then
     exit 1
 fi
 
-# Parse the VM name and zone
+# Split the output to get name and zone
 NEO4J_VM=$(echo $NEO4J_VM_INFO | cut -d' ' -f1)
 NEO4J_ZONE=$(echo $NEO4J_VM_INFO | cut -d' ' -f2)
-
-# Extract zone name from full zone path (e.g., zones/us-central1-a -> us-central1-a)
-NEO4J_ZONE=$(basename $NEO4J_ZONE)
-
-print_status "Found Neo4j VM in zone: $NEO4J_ZONE"
 
 # Get the external IP using the correct zone
 NEO4J_EXTERNAL_IP=$(gcloud compute instances describe $NEO4J_VM --zone=$NEO4J_ZONE --format="value(networkInterfaces[0].accessConfigs[0].natIP)")
 
 echo -e "${CYAN}Neo4j VM: ${WHITE}$NEO4J_VM${NC}"
+echo -e "${CYAN}Neo4j Zone: ${WHITE}$NEO4J_ZONE${NC}"
 echo -e "${CYAN}External IP: ${WHITE}$NEO4J_EXTERNAL_IP${NC}"
 echo -e "${CYAN}Neo4j URL: ${WHITE}http://$NEO4J_EXTERNAL_IP:$NEO4J_PORT${NC}"
 
