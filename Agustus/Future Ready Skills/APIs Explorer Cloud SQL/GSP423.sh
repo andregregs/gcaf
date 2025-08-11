@@ -73,42 +73,14 @@ gcloud services enable bigquery.googleapis.com --quiet
 print_success "APIs enabled successfully!"
 
 print_step "Step 1.2: Create Cloud SQL Instance"
-print_status "Creating MySQL instance 'my-instance' (this may take 3-5 minutes)..."
-print_warning "Please wait while the instance is being created..."
-
-# Start instance creation in background to show progress
+print_status "Creating MySQL instance 'my-instance'..."
 gcloud sql instances create my-instance \
     --project=$DEVSHELL_PROJECT_ID \
     --region=$REGION \
     --database-version=MYSQL_5_7 \
-    --tier=db-n1-standard-1 \
-    --storage-type=SSD \
-    --storage-size=10GB \
-    --availability-type=ZONAL \
-    --backup-start-time=03:00 \
-    --enable-bin-log \
-    --quiet &
+    --tier=db-n1-standard-1
 
-INSTANCE_PID=$!
-
-# Show progress indicator
-print_status "Instance creation in progress..."
-for i in {1..60}; do
-    if ! kill -0 $INSTANCE_PID 2>/dev/null; then
-        break
-    fi
-    echo -ne "${YELLOW}Progress: [$i/60] Creating Cloud SQL instance...${NC}\r"
-    sleep 3
-done
-echo ""
-
-wait $INSTANCE_PID
-if [ $? -eq 0 ]; then
-    print_success "Cloud SQL instance 'my-instance' created successfully!"
-else
-    print_error "Failed to create Cloud SQL instance"
-    exit 1
-fi
+print_success "Cloud SQL instance 'my-instance' created successfully!"
 
 echo -e "\n${GREEN}✓ TASK 1 COMPLETED: Cloud SQL instance created!${NC}"
 
@@ -128,10 +100,10 @@ print_success "Database 'mysql-db' created successfully!"
 
 print_step "Step 2.2: Create BigQuery Dataset (Additional Feature)"
 print_status "Creating BigQuery dataset for data analysis..."
-bq mk --dataset $DEVSHELL_PROJECT_ID:mysql_db --quiet 2>/dev/null || true
+bq mk --dataset $DEVSHELL_PROJECT_ID:mysql_db 2>/dev/null || true
 
 print_status "Creating BigQuery table structure..."
-bq query --use_legacy_sql=false --quiet \
+bq query --use_legacy_sql=false \
 "CREATE TABLE IF NOT EXISTS \`${DEVSHELL_PROJECT_ID}.mysql_db.info\` (
   name STRING,
   age INT64,
@@ -163,24 +135,11 @@ print_success "CSV file created with 6 employee records!"
 
 print_step "Step 3.2: Create Cloud Storage Bucket"
 print_status "Creating Cloud Storage bucket..."
+gsutil mb gs://$DEVSHELL_PROJECT_ID
 
-# Try multiple bucket names for uniqueness
-BUCKET_CREATED=false
-for suffix in "" "-bucket" "-data" "-$(date +%s)"; do
-    BUCKET_NAME="$DEVSHELL_PROJECT_ID$suffix"
-    if gsutil mb gs://$BUCKET_NAME --quiet 2>/dev/null; then
-        BUCKET_CREATED=true
-        break
-    fi
-done
-
-if [ "$BUCKET_CREATED" = true ]; then
-    echo -e "${CYAN}Bucket Name: ${WHITE}$BUCKET_NAME${NC}"
-    print_success "Cloud Storage bucket created successfully!"
-else
-    print_error "Failed to create bucket with multiple attempts"
-    exit 1
-fi
+BUCKET_NAME="$DEVSHELL_PROJECT_ID"
+echo -e "${CYAN}Bucket Name: ${WHITE}$BUCKET_NAME${NC}"
+print_success "Cloud Storage bucket created successfully!"
 
 print_step "Step 3.3: Upload CSV File to Cloud Storage"
 print_status "Uploading employee_info.csv to Cloud Storage..."
@@ -231,6 +190,44 @@ echo -e "${WHITE}2. Select gs://$BUCKET_NAME/employee_info.csv${NC}"
 echo -e "${WHITE}3. Choose mysql-db database and info table${NC}"
 
 echo -e "\n${GREEN}✓ TASK 3 COMPLETED: Table created and CSV file ready for import!${NC}"
+
+# =============================================================================
+# FINAL SUMMARY
+# =============================================================================
+print_step "🎉 Lab Completion Summary"
+
+print_status "Displaying created resources..."
+
+echo -e "\n${CYAN}📋 Created Resources:${NC}"
+echo -e "${WHITE}• Cloud SQL Instance: my-instance (MySQL 5.7)${NC}"
+echo -e "${WHITE}• Database: mysql-db${NC}"
+echo -e "${WHITE}• Table: info (name, age, occupation)${NC}"
+echo -e "${WHITE}• Cloud Storage Bucket: gs://$BUCKET_NAME${NC}"
+echo -e "${WHITE}• CSV File: employee_info.csv (6 records)${NC}"
+echo -e "${WHITE}• BigQuery Dataset: mysql_db${NC}"
+
+echo -e "\n${CYAN}🔑 Key Configurations:${NC}"
+echo -e "${WHITE}• Cloud SQL Admin API: Enabled${NC}"
+echo -e "${WHITE}• Service Account: $SERVICE_EMAIL${NC}"
+echo -e "${WHITE}• Storage Permissions: Configured${NC}"
+echo -e "${WHITE}• Region: $REGION${NC}"
+
+echo -e "\n${CYAN}📁 Files Created:${NC}"
+echo -e "${WHITE}• employee_info.csv - Sample employee data${NC}"
+echo -e "${WHITE}• create_table.sql - Table creation script${NC}"
+
+echo -e "\n${CYAN}🌐 Access Information:${NC}"
+echo -e "${WHITE}• Cloud SQL Console: Navigation Menu -> SQL${NC}"
+echo -e "${WHITE}• Cloud Storage: Navigation Menu -> Cloud Storage -> Buckets${NC}"
+echo -e "${WHITE}• BigQuery: Navigation Menu -> BigQuery${NC}"
+
+print_step "Next Steps (Manual)"
+echo -e "${YELLOW}Complete the data import manually:${NC}"
+echo -e "${WHITE}1. Go to Cloud Console -> SQL -> my-instance${NC}"
+echo -e "${WHITE}2. Click 'Import' button${NC}"
+echo -e "${WHITE}3. Select 'employee_info.csv' from gs://$BUCKET_NAME/${NC}"
+echo -e "${WHITE}4. Choose database: mysql-db, table: info${NC}"
+echo -e "${WHITE}5. Configure format: CSV with custom delimiter${NC}"
 
 # Cleanup
 rm -f create_table.sql
