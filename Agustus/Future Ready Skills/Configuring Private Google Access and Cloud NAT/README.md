@@ -7,8 +7,8 @@
 ### Run the following Commands in CloudShell 
 
 ```
-curl -LO raw.githubusercontent.com/andregregs/gcaf/refs/heads/main/Agustus/Level%202/Dataproc%20Qwik%20Start%20-%20Command%20Line/GSP104.sh
-sudo chmod +x GSP104.sh
+curl -LO raw.githubusercontent.com/andregregs/gcaf/refs/heads/main/Agustus/Future%20Ready%20Skills/Configuring%20Private%20Google%20Access%20and%20Cloud%20NAT/GSP459.sh
+sudo chmod +x GSP459.sh
 
-./GSP104.sh
+./GSP459.sh
 ```
