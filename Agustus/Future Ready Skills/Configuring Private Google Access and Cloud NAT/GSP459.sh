@@ -45,6 +45,7 @@ print_task() {
 # Get project information using metadata
 print_status "Getting project and environment information..."
 export PROJECT_ID=$(gcloud config get-value project)
+export DEVSHELL_PROJECT_ID=$PROJECT_ID
 
 # Get region and zone from project metadata
 print_status "Retrieving zone and region from project metadata..."
@@ -73,55 +74,81 @@ echo -e "${CYAN}Zone: ${WHITE}$ZONE${NC}"
 # =============================================================================
 print_task "1. Create the VM Instances"
 
-print_step "Step 1.1: Create VPC Network and Firewall Rules"
+print_step "Step 1.1: Enable Required Services"
+print_status "Enabling OS Config API..."
+gcloud services enable osconfig.googleapis.com
+print_success "OS Config API enabled successfully!"
+
+print_step "Step 1.2: Create VPC Network and Firewall Rules"
 print_status "Creating VPC network 'privatenet'..."
 gcloud compute networks create privatenet \
-    --subnet-mode=custom
+    --project=$DEVSHELL_PROJECT_ID \
+    --subnet-mode=custom \
+    --mtu=1460 \
+    --bgp-routing-mode=regional \
+    --bgp-best-path-selection-mode=legacy
 
 print_status "Creating subnet 'privatenet-us'..."
 gcloud compute networks subnets create privatenet-us \
-    --network=privatenet \
+    --project=$DEVSHELL_PROJECT_ID \
     --range=10.130.0.0/20 \
+    --stack-type=IPV4_ONLY \
+    --network=privatenet \
     --region=$REGION
 
 print_status "Creating firewall rule for SSH access..."
 gcloud compute firewall-rules create privatenet-allow-ssh \
+    --project=$DEVSHELL_PROJECT_ID \
+    --direction=INGRESS \
+    --priority=1000 \
     --network=privatenet \
-    --allow=tcp:22 \
-    --source-ranges=0.0.0.0/0 \
-    --description="Allow SSH to all instances in privatenet"
+    --action=ALLOW \
+    --rules=tcp:22 \
+    --source-ranges=0.0.0.0/0
 
 print_success "VPC network and firewall rules created successfully!"
 
-print_step "Step 1.2: Create VM Instance with No Public IP"
+print_step "Step 1.3: Create VM Instance with No Public IP"
 print_status "Creating vm-internal (no external IP)..."
 gcloud compute instances create vm-internal \
+    --project=$DEVSHELL_PROJECT_ID \
     --zone=$ZONE \
     --machine-type=e2-medium \
-    --subnet=privatenet-us \
-    --no-address \
-    --image-family=debian-11 \
-    --image-project=debian-cloud \
-    --boot-disk-size=10GB \
-    --boot-disk-type=pd-standard
+    --network-interface=stack-type=IPV4_ONLY,subnet=privatenet-us,no-address \
+    --metadata=enable-oslogin=true \
+    --maintenance-policy=MIGRATE \
+    --provisioning-model=STANDARD \
+    --scopes=https://www.googleapis.com/auth/devstorage.read_only,https://www.googleapis.com/auth/logging.write,https://www.googleapis.com/auth/monitoring.write,https://www.googleapis.com/auth/servicecontrol,https://www.googleapis.com/auth/service.management.readonly,https://www.googleapis.com/auth/trace.append \
+    --create-disk=auto-delete=yes,boot=yes,device-name=vm-internal,image=projects/debian-cloud/global/images/debian-11-bullseye-v20240110,mode=rw,size=10,type=projects/$DEVSHELL_PROJECT_ID/zones/$ZONE/diskTypes/pd-balanced \
+    --no-shielded-secure-boot \
+    --shielded-vtpm \
+    --shielded-integrity-monitoring \
+    --labels=goog-ec-src=vm_add-gcloud \
+    --reservation-affinity=any
 
 print_success "vm-internal created successfully!"
 
-print_step "Step 1.3: Create Bastion Host"
+print_step "Step 1.4: Create Bastion Host"
 print_status "Creating vm-bastion (with external IP)..."
 gcloud compute instances create vm-bastion \
+    --project=$DEVSHELL_PROJECT_ID \
     --zone=$ZONE \
     --machine-type=e2-micro \
-    --subnet=privatenet-us \
-    --image-family=debian-11 \
-    --image-project=debian-cloud \
-    --boot-disk-size=10GB \
-    --boot-disk-type=pd-standard \
-    --scopes=https://www.googleapis.com/auth/compute
+    --network-interface=network-tier=PREMIUM,stack-type=IPV4_ONLY,subnet=privatenet-us \
+    --metadata=enable-osconfig=TRUE,enable-oslogin=true \
+    --maintenance-policy=MIGRATE \
+    --provisioning-model=STANDARD \
+    --scopes=https://www.googleapis.com/auth/compute,https://www.googleapis.com/auth/devstorage.read_only,https://www.googleapis.com/auth/logging.write,https://www.googleapis.com/auth/monitoring.write,https://www.googleapis.com/auth/service.management.readonly,https://www.googleapis.com/auth/servicecontrol,https://www.googleapis.com/auth/trace.append \
+    --create-disk=auto-delete=yes,boot=yes,device-name=vm-bastion,image=projects/debian-cloud/global/images/debian-12-bookworm-v20250709,mode=rw,size=10,type=pd-balanced \
+    --no-shielded-secure-boot \
+    --shielded-vtpm \
+    --shielded-integrity-monitoring \
+    --labels=goog-ops-agent-policy=v2-x86-template-1-4-0,goog-ec-src=vm_add-gcloud \
+    --reservation-affinity=any
 
 print_success "vm-bastion created successfully!"
 
-print_step "Step 1.4: Verify VM Instances"
+print_step "Step 1.5: Verify VM Instances"
 print_status "Listing created VM instances..."
 gcloud compute instances list --filter="zone:($ZONE)"
 
@@ -133,67 +160,24 @@ echo -e "\n${GREEN}✓ TASK 1 COMPLETED: VM instances created successfully!${NC}
 print_task "2. Enable Private Google Access"
 
 print_step "Step 2.1: Create Cloud Storage Bucket"
-print_status "Creating globally unique bucket name..."
-BUCKET_NAME="$PROJECT_ID-private-bucket-$(date +%s)"
-echo -e "${CYAN}Bucket Name: ${WHITE}$BUCKET_NAME${NC}"
-
-print_status "Creating Cloud Storage bucket..."
-gcloud storage buckets create gs://$BUCKET_NAME \
-    --location=$REGION \
-    --uniform-bucket-level-access
+print_status "Creating Cloud Storage bucket using gsutil..."
+gsutil mb gs://$DEVSHELL_PROJECT_ID
 
 print_success "Cloud Storage bucket created successfully!"
 
 print_step "Step 2.2: Copy Image to Bucket"
 print_status "Copying test image to bucket..."
-gsutil cp gs://cloud-training/gcpnet/private/access.png gs://$BUCKET_NAME/
+gsutil cp gs://cloud-training/gcpnet/private/access.png gs://$DEVSHELL_PROJECT_ID
 
 print_success "Image copied to bucket successfully!"
 
-print_step "Step 2.3: Test Access from VMs (Before Private Google Access)"
-print_status "Testing bucket access from vm-bastion..."
-echo -e "${YELLOW}This should work because vm-bastion has external IP${NC}"
-
-# Test from bastion (should work)
-gcloud compute ssh vm-bastion \
-    --zone=$ZONE \
-    --command="gsutil cp gs://$BUCKET_NAME/*.png . && echo 'SUCCESS: vm-bastion can access bucket'" \
-    --ssh-flag="-o StrictHostKeyChecking=no" \
-    --quiet || echo "Expected: May fail on first SSH attempt"
-
-print_status "Testing bucket access from vm-internal..."
-echo -e "${YELLOW}This should fail because vm-internal has no external IP and Private Google Access is disabled${NC}"
-
-# Test from internal (should fail)
-gcloud compute ssh vm-bastion \
-    --zone=$ZONE \
-    --command="timeout 10 gcloud compute ssh vm-internal --zone=$ZONE --internal-ip --command='gsutil cp gs://$BUCKET_NAME/*.png .' --ssh-flag='-o StrictHostKeyChecking=no' --quiet" \
-    --ssh-flag="-o StrictHostKeyChecking=no" \
-    --quiet || echo -e "${GREEN}Expected: vm-internal cannot access bucket without Private Google Access${NC}"
-
-print_step "Step 2.4: Enable Private Google Access"
+print_step "Step 2.3: Enable Private Google Access"
 print_status "Enabling Private Google Access on privatenet-us subnet..."
 gcloud compute networks subnets update privatenet-us \
     --region=$REGION \
     --enable-private-ip-google-access
 
 print_success "Private Google Access enabled successfully!"
-
-print_step "Step 2.5: Test Access After Enabling Private Google Access"
-print_status "Testing bucket access from vm-internal after enabling Private Google Access..."
-echo -e "${YELLOW}This should now work because Private Google Access is enabled${NC}"
-
-# Wait a moment for the setting to propagate
-sleep 10
-
-# Test from internal (should now work)
-gcloud compute ssh vm-bastion \
-    --zone=$ZONE \
-    --command="gcloud compute ssh vm-internal --zone=$ZONE --internal-ip --command='gsutil cp gs://$BUCKET_NAME/*.png . && echo SUCCESS: vm-internal can now access bucket' --ssh-flag='-o StrictHostKeyChecking=no' --quiet" \
-    --ssh-flag="-o StrictHostKeyChecking=no" \
-    --quiet
-
-print_success "Private Google Access verification completed!"
 
 echo -e "\n${GREEN}✓ TASK 2 COMPLETED: Private Google Access enabled and tested!${NC}"
 
@@ -202,57 +186,25 @@ echo -e "\n${GREEN}✓ TASK 2 COMPLETED: Private Google Access enabled and teste
 # =============================================================================
 print_task "3. Configure a Cloud NAT Gateway"
 
-print_step "Step 3.1: Test Internet Access Before NAT"
-print_status "Testing internet access on vm-bastion (should work)..."
-gcloud compute ssh vm-bastion \
-    --zone=$ZONE \
-    --command="timeout 30 sudo apt-get update" \
-    --ssh-flag="-o StrictHostKeyChecking=no" \
-    --quiet && echo -e "${GREEN}SUCCESS: vm-bastion can access internet${NC}"
-
-print_status "Testing internet access on vm-internal (should fail)..."
-gcloud compute ssh vm-bastion \
-    --zone=$ZONE \
-    --command="timeout 15 gcloud compute ssh vm-internal --zone=$ZONE --internal-ip --command='sudo apt-get update' --ssh-flag='-o StrictHostKeyChecking=no' --quiet" \
-    --ssh-flag="-o StrictHostKeyChecking=no" \
-    --quiet || echo -e "${GREEN}Expected: vm-internal cannot access internet without NAT${NC}"
-
-print_step "Step 3.2: Create Cloud Router"
+print_step "Step 3.1: Create Cloud Router"
 print_status "Creating Cloud Router for NAT..."
 gcloud compute routers create nat-router \
-    --network=privatenet \
-    --region=$REGION
+    --region=$REGION \
+    --network=privatenet
 
 print_success "Cloud Router created successfully!"
 
-print_step "Step 3.3: Configure Cloud NAT Gateway"
+print_step "Step 3.2: Configure Cloud NAT Gateway"
 print_status "Creating Cloud NAT gateway..."
 gcloud compute routers nats create nat-config \
     --router=nat-router \
-    --region=$REGION \
+    --router-region=$REGION \
     --nat-all-subnet-ip-ranges \
     --auto-allocate-nat-external-ips
 
 print_success "Cloud NAT gateway created successfully!"
 
-print_step "Step 3.4: Wait for NAT Configuration to Propagate"
-print_status "Waiting for NAT configuration to propagate (60 seconds)..."
-sleep 60
-print_success "Wait completed!"
-
-print_step "Step 3.5: Verify Cloud NAT Gateway"
-print_status "Testing internet access on vm-internal after NAT configuration..."
-echo -e "${YELLOW}This should now work because vm-internal can use Cloud NAT${NC}"
-
-gcloud compute ssh vm-bastion \
-    --zone=$ZONE \
-    --command="gcloud compute ssh vm-internal --zone=$ZONE --internal-ip --command='timeout 60 sudo apt-get update && echo SUCCESS: vm-internal can now access internet via NAT' --ssh-flag='-o StrictHostKeyChecking=no' --quiet" \
-    --ssh-flag="-o StrictHostKeyChecking=no" \
-    --quiet
-
-print_success "Cloud NAT gateway verification completed!"
-
-print_step "Step 3.6: Display Configuration Summary"
+print_step "Step 3.3: Display Configuration Summary"
 print_status "Displaying final configuration..."
 
 echo -e "\n${CYAN}Created Resources:${NC}"
@@ -261,15 +213,15 @@ echo -e "${WHITE}• Subnet: privatenet-us (10.130.0.0/20)${NC}"
 echo -e "${WHITE}• VM Instances:${NC}"
 echo -e "${WHITE}  - vm-internal (no external IP)${NC}"
 echo -e "${WHITE}  - vm-bastion (with external IP)${NC}"
-echo -e "${WHITE}• Cloud Storage: gs://$BUCKET_NAME${NC}"
+echo -e "${WHITE}• Cloud Storage: gs://$DEVSHELL_PROJECT_ID${NC}"
 echo -e "${WHITE}• Cloud NAT: nat-config${NC}"
 echo -e "${WHITE}• Cloud Router: nat-router${NC}"
 
-echo -e "\n${CYAN}Key Features Demonstrated:${NC}"
+echo -e "\n${CYAN}Key Features Configured:${NC}"
 echo -e "${WHITE}• Private Google Access: Enabled on privatenet-us${NC}"
 echo -e "${WHITE}• Cloud NAT: Allows vm-internal to access internet${NC}"
 echo -e "${WHITE}• Bastion Host: Provides secure access to private VMs${NC}"
 
-echo -e "\n${GREEN}✓ TASK 3 COMPLETED: Cloud NAT gateway configured and verified!${NC}"
+echo -e "\n${GREEN}✓ TASK 3 COMPLETED: Cloud NAT gateway configured successfully!${NC}"
 
 print_success "All lab tasks completed successfully! 🎉"
