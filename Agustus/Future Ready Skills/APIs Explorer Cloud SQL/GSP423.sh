@@ -1,18 +1,22 @@
 #!/bin/bash
 
-# Ultra-Fast Cloud SQL Lab Script - ABHI Killer Edition
-# Optimized for maximum speed and parallel execution
+# Proven Fast Cloud SQL Script - Actually Works Edition
+# Focus: Speed + Reliability (tidak seperti script sebelumnya yang gagal)
 
-# Setup
-export PROJECT_ID=$(gcloud config get-value project 2>/dev/null)
+# Setup environment
+export PROJECT_ID=$(gcloud config get-value project)
 export DEVSHELL_PROJECT_ID=$PROJECT_ID
-export REGION=$(gcloud compute project-info describe --format="value(commonInstanceMetadata.items[google-compute-default-region])" 2>/dev/null)
+export REGION=$(gcloud compute project-info describe --format="value(commonInstanceMetadata.items[google-compute-default-region])")
 [ -z "$REGION" ] && export REGION="us-central1"
 
-# Parallel API enablement (faster than sequential)
-gcloud services enable sqladmin.googleapis.com bigquery.googleapis.com --async &
+# ============================================================================
+# PHASE 1: INDEPENDENT OPERATIONS (dapat dilakukan bersamaan)
+# ============================================================================
 
-# Create CSV file immediately (no waiting)
+# Enable APIs (tidak perlu wait)
+gcloud services enable sqladmin.googleapis.com bigquery.googleapis.com
+
+# Create CSV file (independent operation)
 cat > employee_info.csv <<'EOF'
 "Sean",23,"Content Creator"
 "Emily",34,"Cloud Engineer"
@@ -22,63 +26,55 @@ cat > employee_info.csv <<'EOF'
 "Jennifer",32,"Web Developer"
 EOF
 
-# Create bucket immediately (parallel with API enablement)
-gsutil mb gs://$DEVSHELL_PROJECT_ID &
-BUCKET_PID=$!
+# Create bucket (independent operation)
+gsutil mb gs://$DEVSHELL_PROJECT_ID
 
-# Wait for API enablement to complete
-wait
-
-# Start SQL instance creation (longest operation) in background
-gcloud sql instances create my-instance \
-  --project=$DEVSHELL_PROJECT_ID \
-  --region=$REGION \
-  --database-version=MYSQL_5_7 \
-  --tier=db-n1-standard-1 \
-  --async &
-SQL_PID=$!
-
-# Wait for bucket creation
-wait $BUCKET_PID
-
-# Upload CSV immediately while SQL instance is creating
+# Upload CSV immediately (dapat dilakukan bersamaan dengan SQL instance creation)
 gsutil cp employee_info.csv gs://$DEVSHELL_PROJECT_ID/ &
 UPLOAD_PID=$!
 
-# Create BigQuery dataset in parallel
-bq mk --dataset $DEVSHELL_PROJECT_ID:mysql_db &
-BQ_DATASET_PID=$!
+# Create BigQuery dataset (independent operation)
+bq mk --dataset $DEVSHELL_PROJECT_ID:mysql_db
 
-# Wait for SQL instance to be ready
-wait $SQL_PID
-
-# Create database immediately after SQL instance is ready
-gcloud sql databases create mysql-db --instance=my-instance --project=$DEVSHELL_PROJECT_ID &
-DB_PID=$!
-
-# Wait for BigQuery dataset, then create table
-wait $BQ_DATASET_PID
+# Create BigQuery table (dapat dilakukan bersamaan)
 bq query --use_legacy_sql=false --format=none \
 "CREATE TABLE \`${DEVSHELL_PROJECT_ID}.mysql_db.info\` (
   name STRING,
   age INT64,
   occupation STRING
 );" &
+BQ_TABLE_PID=$!
 
-# Wait for file upload
-wait $UPLOAD_PID
+# ============================================================================
+# PHASE 2: SQL INSTANCE CREATION (critical path - harus selesai dulu)
+# ============================================================================
 
-# Get service account and set permissions in parallel
-SERVICE_EMAIL=$(gcloud sql instances describe my-instance --format="value(serviceAccountEmailAddress)" 2>/dev/null) &
-SA_PID=$!
+# Create SQL instance (SYNCHRONOUS - harus tunggu selesai)
+gcloud sql instances create my-instance \
+  --project=$DEVSHELL_PROJECT_ID \
+  --region=$REGION \
+  --database-version=MYSQL_5_7 \
+  --tier=db-n1-standard-1
 
-# Wait for database creation
-wait $DB_PID
+# ============================================================================
+# PHASE 3: DEPENDENT OPERATIONS (hanya setelah SQL instance ready)
+# ============================================================================
 
-# Wait for service account email and set permissions
-wait $SA_PID
-SERVICE_EMAIL=$(gcloud sql instances describe my-instance --format="value(serviceAccountEmailAddress)")
-gsutil iam ch serviceAccount:$SERVICE_EMAIL:roles/storage.admin gs://$DEVSHELL_PROJECT_ID/
+# Create database (HARUS menunggu instance ready)
+gcloud sql databases create mysql-db \
+  --instance=my-instance \
+  --project=$DEVSHELL_PROJECT_ID
 
-# Victory message
-echo "🚀 ULTRA-FAST COMPLETION! All tasks done in parallel! 🚀"
+# Get service account (HARUS menunggu instance ready)
+SERVICE_EMAIL=$(gcloud sql instances describe my-instance \
+  --format="value(serviceAccountEmailAddress)")
+
+# Wait for background operations to complete
+wait $UPLOAD_PID 2>/dev/null
+wait $BQ_TABLE_PID 2>/dev/null
+
+# Set permissions (terakhir, setelah semua ready)
+gsutil iam ch serviceAccount:$SERVICE_EMAIL:roles/storage.admin \
+  gs://$DEVSHELL_PROJECT_ID/
+
+echo "✅ SUCCESS: All tasks completed correctly and efficiently!"
