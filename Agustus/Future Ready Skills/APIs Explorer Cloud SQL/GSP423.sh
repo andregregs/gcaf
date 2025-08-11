@@ -8,7 +8,12 @@ Y='\033[1;33m'
 G='\033[0;32m'
 NC='\033[0m'
 
+# Get project ID properly
+export PROJECT_ID=$(gcloud config get-value project)
+export DEVSHELL_PROJECT_ID=${DEVSHELL_PROJECT_ID:-$PROJECT_ID}
+
 echo -e "${Y}⚡ FAST COMPLETION MODE - Green Checkmarks Only${NC}"
+echo -e "${Y}📍 Project ID: $DEVSHELL_PROJECT_ID${NC}"
 
 # Get region fast
 export REGION=$(gcloud compute project-info describe --format="value(commonInstanceMetadata.items[google-compute-default-region])")
@@ -41,9 +46,12 @@ cat > employee_info.csv <<EOF
 "Jennifer",32,"Web Developer"
 EOF
 
-# Create bucket (parallel)
+# Create bucket with unique name
 echo -e "${Y}🪣 Creating storage bucket...${NC}"
-gsutil mb gs://$DEVSHELL_PROJECT_ID-sql-bucket --quiet 2>/dev/null || gsutil mb gs://$DEVSHELL_PROJECT_ID-bucket-$(date +%s) --quiet &
+BUCKET_NAME="$DEVSHELL_PROJECT_ID-sql-bucket-$(date +%s)"
+echo -e "${Y}📦 Bucket name: $BUCKET_NAME${NC}"
+
+gsutil mb gs://$BUCKET_NAME --quiet &
 BUCKET_PID=$!
 
 # Wait for instance creation
@@ -55,17 +63,10 @@ echo -e "${Y}🗃️  Creating database...${NC}"
 gcloud sql databases create mysql-db --instance=my-instance --quiet
 echo -e "${G}✅ Database created${NC}"
 
-# Wait for bucket and upload CSV
+# Wait for bucket creation and upload CSV
 wait $BUCKET_PID
 
-# Get actual bucket name
-BUCKET_NAME=$(gsutil ls | grep $DEVSHELL_PROJECT_ID | head -1 | sed 's|gs://||g' | sed 's|/||g')
-if [ -z "$BUCKET_NAME" ]; then
-    BUCKET_NAME="$DEVSHELL_PROJECT_ID-sql-$(date +%s)"
-    gsutil mb gs://$BUCKET_NAME --quiet
-fi
-
-echo -e "${Y}📤 Uploading CSV to gs://$BUCKET_NAME${NC}"
+echo -e "${Y}📤 Uploading CSV to bucket...${NC}"
 gsutil cp employee_info.csv gs://$BUCKET_NAME/ --quiet
 echo -e "${G}✅ CSV uploaded to bucket${NC}"
 
