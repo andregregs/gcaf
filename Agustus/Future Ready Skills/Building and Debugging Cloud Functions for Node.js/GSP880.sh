@@ -103,9 +103,6 @@ else
     print_error "❌ Functions Framework not found in dependencies"
 fi
 
-# Wait to ensure checkpoint detection
-print_warning "Waiting 5 seconds for GCSB checkpoint detection..."
-sleep 5
 
 echo -e "\n${GREEN}✓ TASK 1 COMPLETED: Functions Framework for Node.js installed!${NC}"
 
@@ -169,9 +166,6 @@ curl -X POST http://localhost:8080 || echo "Test completed"
 kill $FUNCTION_PID 2>/dev/null
 wait $FUNCTION_PID 2>/dev/null
 
-# Wait to ensure checkpoint detection
-print_warning "Waiting 5 seconds for GCSB checkpoint detection..."
-sleep 5
 
 echo -e "\n${GREEN}✓ TASK 2 COMPLETED: HTTP Cloud Function created and tested!${NC}"
 
@@ -232,9 +226,6 @@ curl -X POST http://localhost:8080 -H "Content-Type:application/json" -d '{"temp
 kill $FUNCTION_PID 2>/dev/null
 wait $FUNCTION_PID 2>/dev/null
 
-# Wait to ensure checkpoint detection
-print_warning "Waiting 5 seconds for GCSB checkpoint detection..."
-sleep 5
 
 echo -e "\n${GREEN}✓ TASK 3 COMPLETED: HTTP Function debugged and fixed!${NC}"
 
@@ -294,9 +285,6 @@ curl -X POST $FUNCTION_URL -H "Content-Type:application/json" -d '{"temp":"50"}'
 print_status "Verifying function deployment..."
 gcloud functions describe validateTemperature --region=$REGION --format="value(name)" || echo "Function verification completed"
 
-# Wait to ensure checkpoint detection
-print_warning "Waiting 10 seconds for GCSB checkpoint detection..."
-sleep 10
 
 echo -e "\n${GREEN}✓ TASK 4 COMPLETED: HTTP Function deployed to Google Cloud!${NC}"
 
