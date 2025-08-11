@@ -191,45 +191,4 @@ echo -e "${WHITE}3. Choose mysql-db database and info table${NC}"
 
 echo -e "\n${GREEN}✓ TASK 3 COMPLETED: Table created and CSV file ready for import!${NC}"
 
-# =============================================================================
-# FINAL SUMMARY
-# =============================================================================
-print_step "🎉 Lab Completion Summary"
-
-print_status "Displaying created resources..."
-
-echo -e "\n${CYAN}📋 Created Resources:${NC}"
-echo -e "${WHITE}• Cloud SQL Instance: my-instance (MySQL 5.7)${NC}"
-echo -e "${WHITE}• Database: mysql-db${NC}"
-echo -e "${WHITE}• Table: info (name, age, occupation)${NC}"
-echo -e "${WHITE}• Cloud Storage Bucket: gs://$BUCKET_NAME${NC}"
-echo -e "${WHITE}• CSV File: employee_info.csv (6 records)${NC}"
-echo -e "${WHITE}• BigQuery Dataset: mysql_db${NC}"
-
-echo -e "\n${CYAN}🔑 Key Configurations:${NC}"
-echo -e "${WHITE}• Cloud SQL Admin API: Enabled${NC}"
-echo -e "${WHITE}• Service Account: $SERVICE_EMAIL${NC}"
-echo -e "${WHITE}• Storage Permissions: Configured${NC}"
-echo -e "${WHITE}• Region: $REGION${NC}"
-
-echo -e "\n${CYAN}📁 Files Created:${NC}"
-echo -e "${WHITE}• employee_info.csv - Sample employee data${NC}"
-echo -e "${WHITE}• create_table.sql - Table creation script${NC}"
-
-echo -e "\n${CYAN}🌐 Access Information:${NC}"
-echo -e "${WHITE}• Cloud SQL Console: Navigation Menu -> SQL${NC}"
-echo -e "${WHITE}• Cloud Storage: Navigation Menu -> Cloud Storage -> Buckets${NC}"
-echo -e "${WHITE}• BigQuery: Navigation Menu -> BigQuery${NC}"
-
-print_step "Next Steps (Manual)"
-echo -e "${YELLOW}Complete the data import manually:${NC}"
-echo -e "${WHITE}1. Go to Cloud Console -> SQL -> my-instance${NC}"
-echo -e "${WHITE}2. Click 'Import' button${NC}"
-echo -e "${WHITE}3. Select 'employee_info.csv' from gs://$BUCKET_NAME/${NC}"
-echo -e "${WHITE}4. Choose database: mysql-db, table: info${NC}"
-echo -e "${WHITE}5. Configure format: CSV with custom delimiter${NC}"
-
-# Cleanup
-rm -f create_table.sql
-
 print_success "All lab tasks completed successfully! 🎉"
