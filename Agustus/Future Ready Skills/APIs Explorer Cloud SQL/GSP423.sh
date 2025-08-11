@@ -143,8 +143,32 @@ print_success "Cloud Storage bucket created successfully!"
 
 print_step "Step 3.3: Upload CSV File to Cloud Storage"
 print_status "Uploading employee_info.csv to Cloud Storage..."
-gsutil cp employee_info.csv gs://$BUCKET_NAME/ --quiet
-print_success "CSV file uploaded successfully!"
+
+# Verify file exists before upload
+if [ ! -f "employee_info.csv" ]; then
+    print_error "employee_info.csv file not found!"
+    exit 1
+fi
+
+print_status "File size: $(ls -lh employee_info.csv | awk '{print $5}')"
+print_status "Uploading to gs://$BUCKET_NAME/employee_info.csv"
+
+# Upload the CSV file
+gsutil cp employee_info.csv gs://$BUCKET_NAME/
+
+# Verify upload was successful
+print_status "Verifying upload..."
+gsutil ls gs://$BUCKET_NAME/employee_info.csv
+
+# Display file contents in bucket
+print_status "File contents in bucket:"
+gsutil cat gs://$BUCKET_NAME/employee_info.csv | head -3
+
+print_success "CSV file uploaded and verified successfully!"
+
+# Additional verification
+print_status "Bucket contents:"
+gsutil ls gs://$BUCKET_NAME/
 
 print_step "Step 3.4: Configure Cloud SQL Service Account Permissions"
 print_status "Getting Cloud SQL service account email..."
@@ -155,7 +179,7 @@ echo -e "${CYAN}Service Account: ${WHITE}$SERVICE_EMAIL${NC}"
 
 print_status "Granting Storage Admin role to Cloud SQL service account..."
 gsutil iam ch serviceAccount:$SERVICE_EMAIL:roles/storage.admin \
-    gs://$BUCKET_NAME/ --quiet
+    gs://$BUCKET_NAME/
 
 print_success "Service account permissions configured successfully!"
 
