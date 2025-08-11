@@ -373,12 +373,6 @@ fi
 
 echo -e "\n${GREEN}✓ TASK 4 COMPLETED: Data imported successfully!${NC}"
 
-# =============================================================================
-# MINIMAL SUMMARY (FOR SPEED)
-# =============================================================================
 print_step "🎉 Lab Completed Successfully"
-
-echo -e "${CYAN}Created:${NC} Firestore DB | ${WHITE}1000 Records${NC} | ${CYAN}Node.js App${NC}"
-echo -e "${GREEN}Access:${NC} Navigation Menu → Firestore"
 
 print_success "All tasks completed in optimized time! 🚀"
