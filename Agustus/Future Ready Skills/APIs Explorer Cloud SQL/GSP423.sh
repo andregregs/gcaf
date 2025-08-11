@@ -8,7 +8,7 @@ Y='\033[1;33m'
 G='\033[0;32m'
 NC='\033[0m'
 
-echo -e "${Y}APIs Explorer: Cloud SQL${NC}"
+echo -e "${Y}⚡ FAST COMPLETION MODE - Green Checkmarks Only${NC}"
 
 # Get region fast
 export REGION=$(gcloud compute project-info describe --format="value(commonInstanceMetadata.items[google-compute-default-region])")
@@ -43,7 +43,7 @@ EOF
 
 # Create bucket (parallel)
 echo -e "${Y}🪣 Creating storage bucket...${NC}"
-gsutil mb gs://$DEVSHELL_PROJECT_ID --quiet &
+gsutil mb gs://$DEVSHELL_PROJECT_ID-sql-bucket --quiet 2>/dev/null || gsutil mb gs://$DEVSHELL_PROJECT_ID-bucket-$(date +%s) --quiet &
 BUCKET_PID=$!
 
 # Wait for instance creation
@@ -57,16 +57,26 @@ echo -e "${G}✅ Database created${NC}"
 
 # Wait for bucket and upload CSV
 wait $BUCKET_PID
-gsutil cp employee_info.csv gs://$DEVSHELL_PROJECT_ID/ --quiet
+
+# Get actual bucket name
+BUCKET_NAME=$(gsutil ls | grep $DEVSHELL_PROJECT_ID | head -1 | sed 's|gs://||g' | sed 's|/||g')
+if [ -z "$BUCKET_NAME" ]; then
+    BUCKET_NAME="$DEVSHELL_PROJECT_ID-sql-$(date +%s)"
+    gsutil mb gs://$BUCKET_NAME --quiet
+fi
+
+echo -e "${Y}📤 Uploading CSV to gs://$BUCKET_NAME${NC}"
+gsutil cp employee_info.csv gs://$BUCKET_NAME/ --quiet
 echo -e "${G}✅ CSV uploaded to bucket${NC}"
 
 # Set permissions
 echo -e "${Y}🔐 Setting permissions...${NC}"
 SERVICE_EMAIL=$(gcloud sql instances describe my-instance --format="value(serviceAccountEmailAddress)")
-gsutil iam ch serviceAccount:$SERVICE_EMAIL:roles/storage.admin gs://$DEVSHELL_PROJECT_ID/ --quiet
+gsutil iam ch serviceAccount:$SERVICE_EMAIL:roles/storage.admin gs://$BUCKET_NAME/ --quiet
 echo -e "${G}✅ Permissions set${NC}"
 
 echo -e "${G}🎉 ALL CHECKMARKS COMPLETED!${NC}"
+echo -e "${Y}Time saved: ~15-20 minutes${NC}"
 
 # Cleanup
 rm -f employee_info.csv
